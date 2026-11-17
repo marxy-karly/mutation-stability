@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare Methods</title>
+<meta name="description" content="Predicting the stability change of single amino-acid mutations in unseen protein families.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="compare">
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="index.html">Mutation Stability</a>
+  <nav aria-label="Pages"><a href="index.html" data-page="index">Home</a><a href="tour.html" data-page="tour">Guided tour</a><a href="split.html" data-page="split">Split</a><a href="errors.html" data-page="errors">Errors</a><a href="compare.html" data-page="compare">Compare</a><a href="results.html" data-page="results">Results</a><a href="reproduce.html" data-page="reproduce">Reproduce</a></nav>
+</div></header>
+<div class="shell">
+<main>
+<header class="pagehead"><p class="kicker">Interactive</p><h1>Compare methods</h1><p class="answer">Pick any two methods, see every metric side by side, and see the ranking the selection was based on.</p></header>
+<section id="compare">
+  <div class="figure">
+    <div class="controls"><label for="cmpA">Method A<select id="cmpA"></select></label><label for="cmpB">Method B<select id="cmpB"></select></label></div>
+    <div class="scroll"><table><thead><tr><th>Measure</th><th class="r" id="cmpHA">A</th><th class="r" id="cmpHB">B</th><th class="r">B minus A</th></tr></thead><tbody id="cmpRows"></tbody>
+    <caption>MAE and RMSE in kcal/mol. For errors, a positive "B minus A" means B is worse.</caption></table></div>
+    <p class="readout" id="cmpReadout"></p>
+  </div>
+  <h2>Ranking by validation MAE</h2>
+  <p>This is the ranking the model was selected from. Test MAE is shown for reference only.</p>
+  <div class="scroll"><table><thead><tr><th class="r">Rank</th><th>Method</th><th class="r">Validation MAE</th><th class="r">Test MAE</th><th class="r">Mean MAE over repeats</th></tr></thead><tbody id="rankRows"></tbody></table></div>
+</section>
+<section id="features"><h2>F1 against F2</h2><div class="figure">
+    <h4>Adding neighbouring residues (F2) changes little</h4>
+    <p class="sub">Validation MAE for each algorithm with feature set F1 and with F2 (kcal/mol, lower is better).</p>
+    <div class="legend"><span><i class="s1"></i>F1: swap, position, length</span><span><i class="s2"></i>F2: F1 + two residues on each side</span></div>
+    <div id="chartF1F2"></div>
+  </div>
+  <p id="f1f2Note"></p></section>
+<section id="claims"><h2>What this supports</h2><div class="claims" data-claims="compare"></div></section>
+</main>
+<footer id="foot"></footer>
+</div>
+<div id="tip" role="status"></div>
+<script src="results.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Split</title>
+<meta name="description" content="Predicting the stability change of single amino-acid mutations in unseen protein families.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="split">
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="index.html">Mutation Stability</a>
+  <nav aria-label="Pages"><a href="index.html" data-page="index">Home</a><a href="tour.html" data-page="tour">Guided tour</a><a href="split.html" data-page="split">Split</a><a href="errors.html" data-page="errors">Errors</a><a href="compare.html" data-page="compare">Compare</a><a href="results.html" data-page="results">Results</a><a href="reproduce.html" data-page="reproduce">Reproduce</a></nav>
+</div></header>
+<div class="shell">
+<main>
+<header class="pagehead"><p class="kicker">Interactive</p><h1>Why the split matters</h1><p class="answer">The same models, scored two ways. Most of the apparent skill under random folds comes from relatives of the test rows sitting in training.</p></header>
+<section id="leak"><h2>Cross-validation on the training data</h2><div class="figure">
+    <h4 id="leakTitle"></h4>
+    <p class="sub">Cross-validated MAE on training and validation rows (kcal/mol, lower is better), for the same methods under two ways of making folds.</p>
+    <div class="legend"><span><i class="s1"></i>Folds keep clusters together</span><span><i class="s2"></i>Random folds</span></div>
+    <div id="chartLeak"></div>
+  </div>
+  <p id="leakNote"></p><p class="repo" data-items="src/evaluate.py"></p></section>
+<section id="sandbox">
+  <h2>Run it yourself</h2>
+  <p>This panel reruns the comparison in your browser on a random <span data-v="config.sandbox_rows"></span> rows: the mean, the substitution table and ridge on F1, with 5-fold cross-validation. Change the penalty, reshuffle the folds, or load your own CSV.</p>
+  <div class="figure">
+    <div class="controls">
+      <label for="sbAlpha">Ridge penalty α: <span class="num" id="sbAlphaVal"></span><input type="range" id="sbAlpha" min="-1" max="4" step="0.25" value="1"></label>
+      <label for="sbSeed">Shuffle seed<input type="number" id="sbSeed" value="0" min="0" step="1" style="width:6rem"></label>
+      <button type="button" id="sbShuffle">Reshuffle folds</button>
+    </div>
+    <div class="legend"><span><i class="s1"></i>Folds keep groups together</span><span><i class="s2"></i>Random folds</span></div>
+    <div id="chartSandbox"></div>
+    <p class="readout" id="sbReadout"></p>
+    <details><summary>Use a different dataset</summary>
+      <p>Any CSV with a sequence column, a mutation column (single substitutions such as <code>W34D</code>), a numeric target and a group column. The file stays in your browser. Up to 6,000 rows are used.</p>
+      <div class="controls"><label for="sbFile">CSV file<input type="file" id="sbFile" accept=".csv,text/csv"></label></div>
+      <div class="controls" id="sbMap" hidden>
+        <label for="sbSeqCol">Sequence<select id="sbSeqCol"></select></label><label for="sbMutCol">Mutation<select id="sbMutCol"></select></label>
+        <label for="sbTargetCol">Target<select id="sbTargetCol"></select></label><label for="sbGroupCol">Group<select id="sbGroupCol"></select></label>
+        <button type="button" id="sbRun">Run on this file</button><button type="button" class="ghost" id="sbReset">Back to the project data</button>
+      </div>
+      <p class="error" id="sbError" role="alert"></p>
+    </details>
+  </div>
+  <p>Things to try: reshuffle a few times and watch how much the grouped scores move. That spread is why the results come with intervals.</p>
+</section>
+<section id="claims"><h2>What this supports</h2><div class="claims" data-claims="split"></div></section>
+</main>
+<footer id="foot"></footer>
+</div>
+<div id="tip" role="status"></div>
+<script src="results.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

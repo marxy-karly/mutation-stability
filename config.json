@@ -1,0 +1,44 @@
+{
+  "dataset_label": "single substitutions from K50_dG_Dataset1_Dataset2.csv",
+  "splits": {
+    "train": "data/splits/train_features.csv",
+    "validation": "data/splits/validation_features.csv",
+    "test": "data/splits/test_features.csv"
+  },
+  "columns": {
+    "target": "ddG_ML",
+    "group": "WT_cluster",
+    "protein": "WT_name",
+    "mutation": "mut_type",
+    "sequence": "aa_seq",
+    "original": "aa_original",
+    "mutated": "aa_mutated",
+    "position": "position",
+    "length": "sequence_length",
+    "context": [
+      "residue_minus_2",
+      "residue_minus_1",
+      "residue_plus_1",
+      "residue_plus_2"
+    ]
+  },
+  "facts": {
+    "n_raw": 851552,
+    "n_single": 542542,
+    "n_no_target": 165624
+  },
+  "split_note": "Two-stage GroupShuffleSplit on WT_cluster with seed 42 (src/split_data.py), aiming at 70/15/15",
+  "seed": 42,
+  "n_bootstrap": 2000,
+  "n_repeats": 5,
+  "leak_rows": 100000,
+  "leak_folds": 5,
+  "importance_rows": 20000,
+  "importance_repeats": 3,
+  "sandbox_rows": 3000,
+  "sandbox_alpha": 10,
+  "test_rows_shown": 3000,
+  "repo_url": "",
+  "author": "",
+  "contribution": ""
+}

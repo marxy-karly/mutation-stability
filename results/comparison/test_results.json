@@ -1,0 +1,8 @@
+{
+    "Selected_Model": "HistGradientBoosting",
+    "Selected_Feature_Set": "F1_baseline",
+    "Test_Observations": 120965,
+    "MAE": 0.7026747591744662,
+    "RMSE": 0.9243446658785565,
+    "R2": 0.2579767137347474
+}

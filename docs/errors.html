@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Error Analysis</title>
+<meta name="description" content="Predicting the stability change of single amino-acid mutations in unseen protein families.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="errors">
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="index.html">Mutation Stability</a>
+  <nav aria-label="Pages"><a href="index.html" data-page="index">Home</a><a href="tour.html" data-page="tour">Guided tour</a><a href="split.html" data-page="split">Split</a><a href="errors.html" data-page="errors">Errors</a><a href="compare.html" data-page="compare">Compare</a><a href="results.html" data-page="results">Results</a><a href="reproduce.html" data-page="reproduce">Reproduce</a></nav>
+</div></header>
+<div class="shell">
+<main>
+<header class="pagehead"><p class="kicker">Interactive</p><h1>Where the predictions fail</h1><p class="answer">Pick a method and a kind of substitution. Below are the error slices and what the selected model relies on.</p></header>
+<section id="explorer">
+  <div class="figure">
+    <div class="controls"><label for="exModel">Method<select id="exModel"></select></label><label for="exStratum">Substitution type<select id="exStratum"></select></label></div>
+    <div class="legend"><span><i class="s1"></i>Designed</span><span><i class="s2"></i>Natural</span></div>
+    <div id="chartScatter"></div>
+    <p class="readout" id="exReadout"></p>
+  </div>
+  <h3>Largest misses in this view</h3>
+  <div class="scroll"><table><thead><tr><th>Mutation in protein</th><th>Type</th><th>Cluster</th><th class="r">Measured</th><th class="r">Predicted</th><th class="r">Error</th></tr></thead><tbody id="worstRows"></tbody></table></div>
+</section>
+<section id="slices">
+  <h2>Where the selected model's error concentrates</h2>
+  <div class="scroll"><table><thead><tr><th>Slice of the test set</th><th class="r">Mutations</th><th class="r">MAE</th><th class="r">Mean signed error</th><th class="r">Table MAE</th><th class="r">Mean MAE</th></tr></thead><tbody id="sliceRows"></tbody>
+  <caption>Signed error is predicted minus measured: negative means the model predicts too low. "Table" is the substitution-table baseline.</caption></table></div>
+  <p id="errorNote"></p>
+  <h3>By test cluster</h3>
+  <div class="scroll"><table><thead><tr><th>Cluster</th><th>Origin</th><th class="r">Proteins</th><th class="r">Mutations</th><th class="r">MAE</th><th class="r">Signed error</th><th class="r">Mean MAE</th></tr></thead><tbody id="clusterRows"></tbody></table></div>
+</section>
+<section id="importance">
+  <h2>What the selected model relies on</h2>
+  <div class="figure"><h4>Permutation importance</h4><p class="sub">How much the validation MAE rises when one input column is shuffled (3 repeats).</p><div id="chartImportance"></div></div>
+  <p id="importanceNote"></p>
+  <p class="repo" data-items="src/evaluate.py"></p>
+</section>
+<section id="claims"><h2>What this supports</h2><div class="claims" data-claims="errors"></div></section>
+</main>
+<footer id="foot"></footer>
+</div>
+<div id="tip" role="status"></div>
+<script src="results.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

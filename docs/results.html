@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Results</title>
+<meta name="description" content="Predicting the stability change of single amino-acid mutations in unseen protein families.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="results">
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="index.html">Mutation Stability</a>
+  <nav aria-label="Pages"><a href="index.html" data-page="index">Home</a><a href="tour.html" data-page="tour">Guided tour</a><a href="split.html" data-page="split">Split</a><a href="errors.html" data-page="errors">Errors</a><a href="compare.html" data-page="compare">Compare</a><a href="results.html" data-page="results">Results</a><a href="reproduce.html" data-page="reproduce">Reproduce</a></nav>
+</div></header>
+<div class="shell">
+<main>
+<header class="pagehead"><p class="kicker">Results</p><h1>Every result in one place</h1><p class="answer">Test scores with intervals, the repeated splits, the limitations and the conclusion.</p></header>
+<section id="results">
+  <h2>Results</h2>
+  <p id="verdict"></p>
+  <div class="scroll"><table>
+    <thead><tr><th>Method</th><th class="r">Val MAE</th><th class="r">Test MAE</th><th class="r">95% interval</th><th class="r">Test RMSE</th><th class="r">Test R²</th><th class="r">Spearman</th><th class="r">Within-protein Spearman</th></tr></thead>
+    <tbody id="resultRows"></tbody><caption id="resultCaption"></caption></table></div>
+  <div class="figure">
+    <h4 id="forestTitle"></h4>
+    <p class="sub">Test MAE minus the mean baseline's test MAE. Left of zero is better.</p>
+    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge and the selected model)</span></div>
+    <div id="chartForest"></div>
+  </div>
+  <div class="figure">
+    <h4 id="forestTitle2"></h4>
+    <p class="sub">The same comparison against the substitution table, which already knows which swap is being made.</p>
+    <div id="chartForestRef"></div>
+  </div>
+  <p id="contextNote"></p>
+  <p class="repo" data-items="src/evaluate.py;results/evaluation.json;results/test_predictions.csv.gz"></p>
+</section>
+<section id="limitations"><h2>Limitations</h2><ul id="limits"></ul></section>
+<section id="conclusion">
+  <h2>Conclusion</h2>
+  <p id="conclusionText"></p>
+  <p>The clearest finding is about method: the same models look better under random folds than under folds that respect protein families. For data with relatives in it, the split decides how good a model looks.</p>
+  <p>A natural next step is to keep this evaluation and add structural features, such as whether a residue is buried, or embeddings from a protein language model.</p>
+  <div class="claims" data-claims="results"></div>
+</section>
+</main>
+<footer id="foot"></footer>
+</div>
+<div id="tip" role="status"></div>
+<script src="results.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

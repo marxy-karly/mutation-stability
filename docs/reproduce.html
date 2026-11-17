@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reproduce</title>
+<meta name="description" content="Predicting the stability change of single amino-acid mutations in unseen protein families.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="reproduce">
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="index.html">Mutation Stability</a>
+  <nav aria-label="Pages"><a href="index.html" data-page="index">Home</a><a href="tour.html" data-page="tour">Guided tour</a><a href="split.html" data-page="split">Split</a><a href="errors.html" data-page="errors">Errors</a><a href="compare.html" data-page="compare">Compare</a><a href="results.html" data-page="results">Results</a><a href="reproduce.html" data-page="reproduce">Reproduce</a></nav>
+</div></header>
+<div class="shell">
+<main>
+<header class="pagehead"><p class="kicker">Reproduce</p><h1>Check the work</h1><p class="answer">The repository holds the code and the full results. This page says how to rerun them.</p></header>
+<section id="reproduce">
+  <p id="repoLine"></p>
+  <pre>pip install -r requirements.txt
+python src/preprocess.py              # single substitutions with a numeric ddG_ML
+python src/split_data.py              # grouped train / validation / test split
+python src/train_models.py            # first baselines (F1)
+python src/add_sequence_features.py   # neighbouring residues (F2)
+python src/update_splits.py           # same split for the F2 files
+python src/compare_models.py          # F1 vs F2 comparison
+python src/evaluate.py                # everything on this site
+python -m http.server -d docs         # open http://localhost:8000</pre>
+  <dl class="frame">
+    <dt>Data</dt><dd>Download <code>Processed_K50_dG_datasets.zip</code> from <a href="https://zenodo.org/records/7401275">Zenodo record 7401275</a> and unzip <code>K50_dG_Dataset1_Dataset2.csv</code> where <code>src/preprocess.py</code> expects it (see README). It is not committed: GitHub rejects files over 100 MB.</dd>
+    <dt>Split</dt><dd><span data-v="config.split_note"></span>. Cluster membership of every row is in the split files.</dd>
+    <dt>Environment</dt><dd id="envLine"></dd>
+    <dt>Citation</dt><dd>Tsuboyama, K. et al. Mega-scale experimental analysis of protein folding stability in biology and design. <em>Nature</em> 620, 434–444 (2023). Data: doi:10.5281/zenodo.7401275.</dd>
+    <dt>AI use</dt><dd>See the README.</dd>
+  </dl>
+</section>
+</main>
+<footer id="foot"></footer>
+</div>
+<div id="tip" role="status"></div>
+<script src="results.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guided Tour</title>
+<meta name="description" content="Predicting the stability change of single amino-acid mutations in unseen protein families.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="tour">
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="index.html">Mutation Stability</a>
+  <nav aria-label="Pages"><a href="index.html" data-page="index">Home</a><a href="tour.html" data-page="tour">Guided tour</a><a href="split.html" data-page="split">Split</a><a href="errors.html" data-page="errors">Errors</a><a href="compare.html" data-page="compare">Compare</a><a href="results.html" data-page="results">Results</a><a href="reproduce.html" data-page="reproduce">Reproduce</a></nav>
+</div></header>
+<div class="shell">
+<main>
+<header class="pagehead"><p class="kicker">Guided tour</p><h1>Nine steps through the project</h1><p class="answer">Each step shows one piece of evidence from the same pipeline output as the rest of the site.</p></header>
+<div class="tour-bar"><div class="tour-track"><div class="tour-fill" id="tourFill"></div></div><p class="tour-count" id="tourCount"></p></div>
+<section class="tstep" id="step-1"><h2><span class="n">01</span>The question</h2><p>Testing whether one amino-acid change helps or hurts a protein takes an experiment. A model that ranks candidate mutations first would save work, if it works on new proteins.</p>
+<dl class="frame"><dt>One row</dt><dd>One single substitution in one protein, such as W34D.</dd><dt>Target</dt><dd>ΔΔG in kcal/mol. Positive means more stable.</dd><dt>Inputs</dt><dd>The swap, its position, the protein's length, and the neighbouring residues.</dd><dt>Test</dt><dd>Protein families the model never saw.</dd></dl></section>
+<section class="tstep" id="step-2"><h2><span class="n">02</span>One row of the data</h2><p>Five random rows. The sequence shows six residues either side of the mutated one, in bold.</p>
+<div class="scroll"><table><thead><tr><th>Mutation</th><th>Sequence around it</th><th class="r">ΔΔG</th><th>Cluster</th></tr></thead><tbody id="tourRows"></tbody></table></div><button type="button" class="ghost" id="tourShuffle">Show five other rows</button></section>
+<section class="tstep" id="step-3"><h2><span class="n">03</span>What the target looks like</h2><div class="figure">
+    <h4>Most mutations change stability only a little, and destabilizing ones outnumber stabilizing ones</h4>
+    <p class="sub">Number of kept single substitutions by measured ΔΔG. Positive means more stable.</p>
+    <div class="legend"><span><i class="s1"></i>Designed proteins</span><span><i class="s2"></i>Natural proteins</span></div>
+    <div id="chartHist"></div>
+  </div></section>
+<section class="tstep" id="step-4"><h2><span class="n">04</span>What is wrong with the data</h2><ul id="quality"></ul></section>
+<section class="tstep" id="step-5"><h2><span class="n">05</span>Why the split follows protein families</h2><div class="figure">
+    <h4 id="leakTitle"></h4>
+    <p class="sub">Cross-validated MAE on training and validation rows (kcal/mol, lower is better), for the same methods under two ways of making folds.</p>
+    <div class="legend"><span><i class="s1"></i>Folds keep clusters together</span><span><i class="s2"></i>Random folds</span></div>
+    <div id="chartLeak"></div>
+  </div>
+  <p id="leakNote"></p></section>
+<section class="tstep" id="step-6"><h2><span class="n">06</span>The bar to beat</h2><p>Three baselines that use almost no information, and the selected model, on the test set.</p>
+<div class="scroll"><table><thead><tr><th>Method</th><th class="r">Test MAE</th><th class="r">95% interval</th></tr></thead><tbody id="tourBase"></tbody></table></div></section>
+<section class="tstep" id="step-7"><h2><span class="n">07</span>The models against the baselines</h2><p id="tourVerdict"></p><div class="figure">
+    <h4 id="forestTitle"></h4>
+    <p class="sub">Test MAE minus the mean baseline's test MAE. Left of zero is better.</p>
+    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge and the selected model)</span></div>
+    <div id="chartForest"></div>
+  </div>
+  <div class="figure">
+    <h4 id="forestTitle2"></h4>
+    <p class="sub">The same comparison against the substitution table, which already knows which swap is being made.</p>
+    <div id="chartForestRef"></div>
+  </div></section>
+<section class="tstep" id="step-8"><h2><span class="n">08</span>Where the predictions fail</h2><p>Each point is a test mutation. A perfect model would put every point on the dashed line.</p>
+<div class="figure"><div class="controls"><label for="exModel">Method<select id="exModel"></select></label></div><div class="legend"><span><i class="s1"></i>Designed</span><span><i class="s2"></i>Natural</span></div><div id="chartScatter"></div><p class="readout" id="exReadout"></p></div></section>
+<section class="tstep" id="step-9"><h2><span class="n">09</span>What the results can and cannot claim</h2><p id="conclusionText"></p><div class="claims" data-claims="results"></div><p><a href="results.html">Full results</a> · <a href="reproduce.html">Reproduce it</a></p></section>
+<div class="tour-nav"><a class="btn ghost" id="tourPrev" href="#step-1">Back</a><a class="btn" id="tourNext" href="#step-2">Next</a></div>
+</main>
+<footer id="foot"></footer>
+</div>
+<div id="tip" role="status"></div>
+<script src="results.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
