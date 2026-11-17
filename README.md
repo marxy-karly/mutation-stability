@@ -1,4 +1,4 @@
-# Predicting the stability change of single mutations in unseen protein families
+<img width="1897" height="1022" alt="image" src="https://github.com/user-attachments/assets/2301b3aa-c4c0-41fc-bec5-68ec6af7e5c4" /># Predicting the stability change of single mutations in unseen protein families
 
 ES 335 Machine Learning course project.
 
@@ -70,10 +70,7 @@ no hyperparameter tuning; the test set was scored once before for an earlier mod
 
 ## AI-use disclosure
 
-Claude (Anthropic) wrote `src/evaluate.py`, the website (`docs/`, `tools/build_pages.py`) and `tests/check_js.mjs`,
-and helped draft this README. I wrote the data pipeline in `src/preprocess.py` through `src/compare_models.py`,
-chose the question and the split, and checked the results.
-_Edit this to match exactly what you did._
+Generative AI was used as an auxillary tool during the development of this project. Its usage spans coding assistance, debugging, methodological guidance to understand the underlying biological and physical principles of the project and documentation.
 
 ## Citations
 
