@@ -1,4 +1,3 @@
-<img width="1897" height="1022" alt="image" src="https://github.com/user-attachments/assets/2301b3aa-c4c0-41fc-bec5-68ec6af7e5c4" /># Predicting the stability change of single mutations in unseen protein families
 
 ES 335 Machine Learning course project.
 
