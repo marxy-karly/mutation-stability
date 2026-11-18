@@ -113,8 +113,13 @@ The website reads `author`, `contribution`, `ai_use` and `repo_url` from `config
 
 ## AI-use disclosure
 
-<!-- To be written. -->
-
+Generative AI was used for the following:
+- Create guides to understand the research paper methods
+- Acting as a methodological mentor to understand the underlying biological/physical principles.
+- Build the website
+- Assistance in writing `README.md`. Assistance in writing the documentation for this project.
+- Assistance in feature engineering and understanding the biological relevance of features.
+- Assistance in writing `src/` files.
 ## Citations
 
 - Tsuboyama, K. et al. Mega-scale experimental analysis of protein folding stability in biology and design. *Nature* 620, 434–444 (2023). https://doi.org/10.1038/s41586-023-06328-6
