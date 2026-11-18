@@ -6,7 +6,7 @@ ES 335 Machine Learning course project.
 stability (ΔΔG, `ddG_ML`, kcal/mol, positive = more stable) be predicted for protein families the model never saw?
 
 - **Website:** `docs/` (7 pages: overview, guided tour, split, errors, compare, results, reproduce)
-- **Live site:** _add your GitHub Pages URL_
+- **Live site:** https://marxy-karly.github.io/mutation-stability/
 
 ## Repository layout
 
