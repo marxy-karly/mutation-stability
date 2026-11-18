@@ -38,7 +38,7 @@
   "sandbox_rows": 3000,
   "sandbox_alpha": 10,
   "test_rows_shown": 3000,
-  "repo_url": "",
+  "repo_url": "https://github.com/marxy-karly/mutation-stability",
   "author": "",
   "contribution": "",
   "structures": "data/structures",
