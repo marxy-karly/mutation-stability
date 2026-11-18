@@ -27,7 +27,7 @@
   <div class="figure">
     <h4 id="forestTitle"></h4>
     <p class="sub">Test MAE minus the mean baseline's test MAE. Left of zero is better.</p>
-    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge and the selected model)</span></div>
+    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge, the selected model, and its base algorithm on each feature set)</span></div>
     <div id="chartForest"></div>
   </div>
   <div class="figure">
@@ -38,12 +38,18 @@
   <p id="contextNote"></p>
   <p class="repo" data-items="src/evaluate.py;results/evaluation.json;results/test_predictions.csv.gz"></p>
 </section>
-<section id="limitations"><h2>Limitations</h2><ul id="limits"></ul></section>
+<section id="limitations"><h2>Limitations and sources of prediction error</h2>
+  <p id="limIntro"></p>
+  <ol class="story" id="limits"></ol>
+  <p id="limNote"></p>
+  <h3>Other limitations of the method</h3>
+  <ul id="limOther"></ul>
+</section>
 <section id="conclusion">
   <h2>Conclusion</h2>
   <p id="conclusionText"></p>
-  <p>The clearest finding is about method: the same models look better under random folds than under folds that respect protein families. For data with relatives in it, the split decides how good a model looks.</p>
-  <p>A natural next step is to keep this evaluation and add structural features, such as whether a residue is buried, or embeddings from a protein language model.</p>
+  <p>Two findings stand out. First, information about where the residue sits in the folded protein mattered far more than extra sequence detail or tuning. Second, the split decides how good a model looks: the same models look better under random folds than under folds that respect protein families.</p>
+  <p id="nextStep"></p>
   <div class="claims" data-claims="results"></div>
 </section>
 </main>
@@ -51,6 +57,7 @@
 </div>
 <div id="tip" role="status"></div>
 <script src="results.js"></script>
+<script src="about.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

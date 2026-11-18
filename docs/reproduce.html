@@ -27,10 +27,12 @@ python src/train_models.py            # first baselines (F1)
 python src/add_sequence_features.py   # neighbouring residues (F2)
 python src/update_splits.py           # same split for the F2 files
 python src/compare_models.py          # F1 vs F2 comparison
-python src/evaluate.py                # everything on this site
+python src/features.py                # optional: check how many proteins have a structure
+python src/evaluate.py                # everything on this site (adds F3 and F4)
 python -m http.server -d docs         # open http://localhost:8000</pre>
   <dl class="frame">
     <dt>Data</dt><dd>Download <code>Processed_K50_dG_datasets.zip</code> from <a href="https://zenodo.org/records/7401275">Zenodo record 7401275</a> and unzip <code>K50_dG_Dataset1_Dataset2.csv</code> where <code>src/preprocess.py</code> expects it (see README). It is not committed: GitHub rejects files over 100 MB.</dd>
+    <dt>Structures</dt><dd>Download <code>AlphaFold_model_PDBs.zip</code> from the same record and unzip it into <code>data/structures/</code>. <code>src/features.py</code> matches models to proteins by sequence. Without it, F4 is skipped and everything else still runs.</dd>
     <dt>Split</dt><dd><span data-v="config.split_note"></span>. Cluster membership of every row is in the split files.</dd>
     <dt>Environment</dt><dd id="envLine"></dd>
     <dt>Citation</dt><dd>Tsuboyama, K. et al. Mega-scale experimental analysis of protein folding stability in biology and design. <em>Nature</em> 620, 434–444 (2023). Data: doi:10.5281/zenodo.7401275.</dd>
@@ -42,6 +44,7 @@ python -m http.server -d docs         # open http://localhost:8000</pre>
 </div>
 <div id="tip" role="status"></div>
 <script src="results.js"></script>
+<script src="about.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

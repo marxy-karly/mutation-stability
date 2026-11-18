@@ -11,6 +11,8 @@
   --accent-wash: #e3f1ef;
   --s1: #2f6fb5;          /* series 1: honest / designed */
   --s2: #d9622b;          /* series 2: leaky / natural */
+  --s3: #1a9e73;          /* series 3: feature set F3 */
+  --s4: #b58400;          /* series 4: feature set F4 */
   --band: rgba(23, 32, 30, .06);
   --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
   --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
@@ -20,14 +22,14 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --paper: #141917; --panel: #1b211f; --ink: #e7ecea; --ink-2: #b4beba; --ink-3: #8b9692;
-    --rule: #2f3835; --accent: #62c4be; --accent-wash: #1c302e; --s1: #3f82d2; --s2: #dd6a35;
+    --rule: #2f3835; --accent: #62c4be; --accent-wash: #1c302e; --s1: #3f82d2; --s2: #dd6a35; --s3: #199e70; --s4: #c98500;
     --band: rgba(231, 236, 234, .07);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --paper: #141917; --panel: #1b211f; --ink: #e7ecea; --ink-2: #b4beba; --ink-3: #8b9692;
-  --rule: #2f3835; --accent: #62c4be; --accent-wash: #1c302e; --s1: #3f82d2; --s2: #dd6a35;
+  --rule: #2f3835; --accent: #62c4be; --accent-wash: #1c302e; --s1: #3f82d2; --s2: #dd6a35; --s3: #199e70; --s4: #c98500;
   --band: rgba(231, 236, 234, .07);
 }
 
@@ -79,7 +81,7 @@ dl.frame dt { font-weight: 600; font-size: .875rem; color: var(--ink-2); padding
 .legend { display: flex; flex-wrap: wrap; gap: .25rem 1rem; font-size: .8125rem; color: var(--ink-2); margin: 0 0 .5rem; }
 .legend span { display: inline-flex; align-items: center; gap: .375rem; }
 .legend i { width: .75rem; height: .75rem; border-radius: 2px; display: inline-block; }
-.legend i.s1 { background: var(--s1); } .legend i.s2 { background: var(--s2); }
+.legend i.s1 { background: var(--s1); } .legend i.s2 { background: var(--s2); } .legend i.s3 { background: var(--s3); } .legend i.s4 { background: var(--s4); }
 .legend i.line { height: 2px; width: 1rem; background: var(--ink); border-radius: 0; }
 .legend i.dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--ink-3); opacity: .6; }
 svg text { font-family: var(--font-body); font-size: 12px; fill: var(--ink-2); }
@@ -88,7 +90,7 @@ svg text.muted { fill: var(--ink-3); }
 svg .axis { stroke: var(--rule); stroke-width: 1; }
 svg .grid { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 2 3; }
 svg .zero { stroke: var(--ink-2); stroke-width: 1; }
-svg .f1 { fill: var(--s1); } svg .f2 { fill: var(--s2); }
+svg .f1 { fill: var(--s1); } svg .f2 { fill: var(--s2); } svg .f3 { fill: var(--s3); } svg .f4 { fill: var(--s4); }
 svg .band { fill: var(--band); }
 svg .pt { stroke: var(--panel); stroke-width: 1; cursor: pointer; }
 svg .pt:hover, svg .pt:focus { stroke: var(--ink); stroke-width: 1.5; outline: none; }
@@ -201,3 +203,4 @@ section > h3 + p { margin-top: 0; }
 .pagehead + section { padding-top: 1.75rem; }
 tr.sub td { font: 600 .75rem/1.2 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); padding-top: 1rem; border-bottom: 1px solid var(--rule); }
 p.note { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: .75rem 1rem; }
+ol.story { padding-left: 1.25rem; } ol.story li { margin-bottom: .75rem; line-height: 1.55; }

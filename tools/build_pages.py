@@ -33,6 +33,7 @@ def page(pid, title, body, desc="Predicting the stability change of single amino
 </div>
 <div id="tip" role="status"></div>
 <script src="results.js"></script>
+<script src="about.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
@@ -58,18 +59,18 @@ HIST_FIG = """<div class="figure">
     <div id="chartHist"></div>
   </div>"""
 
-F1F2_FIG = """<div class="figure">
-    <h4>Adding neighbouring residues (F2) changes little</h4>
-    <p class="sub">Validation MAE for each algorithm with feature set F1 and with F2 (kcal/mol, lower is better).</p>
-    <div class="legend"><span><i class="s1"></i>F1: swap, position, length</span><span><i class="s2"></i>F2: F1 + two residues on each side</span></div>
-    <div id="chartF1F2"></div>
+FS_FIG = """<div class="figure">
+    <h4 id="fsTitle"></h4>
+    <p class="sub">Validation MAE for each algorithm on each feature set it was run with (kcal/mol, lower is better).</p>
+    <div class="legend" id="fsLegend"></div>
+    <div id="chartFS"></div>
   </div>
-  <p id="f1f2Note"></p>"""
+  <p id="fsNote"></p>"""
 
 FOREST = """<div class="figure">
     <h4 id="forestTitle"></h4>
     <p class="sub">Test MAE minus the mean baseline's test MAE. Left of zero is better.</p>
-    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge and the selected model)</span></div>
+    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge, the selected model, and its base algorithm on each feature set)</span></div>
     <div id="chartForest"></div>
   </div>
   <div class="figure">
@@ -85,9 +86,9 @@ INDEX = """<section class="hero">
   <div class="cta"><a class="btn" href="tour.html">Start the guided tour</a><span class="cta-note">9 steps, about five minutes</span><a class="btn ghost" href="results.html">Go to the results</a></div>
   <ol class="flow" aria-label="How the project is built">
     <li><b>One mutation</b><span>A single swap, such as W34D, in a small protein</span></li>
-    <li><b>Features</b><span>The swap, its position, length, and (F2) its neighbours</span></li>
+    <li><b>Features</b><span>F1 the swap and position; F2 its neighbours; F3 sequence-derived numbers; F4 burial in an AlphaFold model</span></li>
     <li><b>Split by family</b><span>Whole clusters go to train, validation or test</span></li>
-    <li><b>Models</b><span>Three baselines and the learned models, each on F1 and F2</span></li>
+    <li><b>Models</b><span>Three baselines and the learned models, on up to four feature sets</span></li>
     <li><b>Select, then test</b><span>Chosen on validation MAE, scored once on test</span></li>
   </ol>
   <dl class="facts" id="facts"></dl>
@@ -101,15 +102,15 @@ INDEX = """<section class="hero">
     <dt>One row</dt><dd>One single-substitution variant of one small protein domain (<span data-v="summary.len_min"></span> to <span data-v="summary.len_max"></span> residues), for example W34D: the tryptophan at position 34 replaced by aspartate.</dd>
     <dt>Target</dt><dd><code>ddG_ML</code>, the variant's stability minus the unmutated protein's, in kcal/mol. Positive means the mutation stabilizes the protein. A regression task.</dd>
     <dt>When the prediction is made</dt><dd>Before any experiment, when only the sequence and the proposed swap exist.</dd>
-    <dt>Available then</dt><dd>The swap, its position, the protein's length and the neighbouring residues. Every measurement column in the file is an output of the experiment and is not used.</dd>
-    <dt>Limits of the claim</dt><dd>Single substitutions with a measurable ΔΔG, on this assay. Nothing about multiple mutations, insertions, deletions or structure-based predictors.</dd>
+    <dt>Available then</dt><dd>The swap, its position, the protein's sequence, and a predicted structure of the unmutated protein (AlphaFold), which needs no experiment. Every measurement column in the file is an output of the experiment and is not used.</dd>
+    <dt>Limits of the claim</dt><dd>Single substitutions with a measurable ΔΔG, on this assay. Nothing about multiple mutations, insertions or deletions, and nothing about structures of the mutated protein.</dd>
   </dl>
   <p class="repo" data-items="src/preprocess.py"></p>
 </section>
 <section id="data">
   <h2><span class="n">02</span>Data</h2>
   <dl class="frame">
-    <dt>Source</dt><dd><code>K50_dG_Dataset1_Dataset2.csv</code> in <code>Processed_K50_dG_datasets.zip</code>, from the data release of Tsuboyama et al. (2023), <a href="https://zenodo.org/records/7401275">Zenodo record 7401275</a>. The release accompanies the bioRxiv preprint.</dd>
+    <dt>Source</dt><dd><code>K50_dG_Dataset1_Dataset2.csv</code> in <code>Processed_K50_dG_datasets.zip</code>, from the data release of Tsuboyama et al. (2023), <a href="https://zenodo.org/records/7401275">Zenodo record 7401275</a>. The release accompanies the bioRxiv preprint. AlphaFold models of the unmutated proteins come from <code>AlphaFold_model_PDBs.zip</code> in the same record (13.7 MB).</dd>
     <dt>Size</dt><dd><span data-v="summary.n_raw"></span> rows and 38 columns in the file; <span data-v="summary.n_single"></span> single substitutions; <span data-v="summary.n_kept"></span> with a usable target, from <span data-v="summary.n_proteins"></span> proteins in <span data-v="summary.n_clusters"></span> clusters.</dd>
     <dt>Access</dt><dd>Open, CC BY 4.0: reuse needs attribution, and the record asks users to register their use. No personal data. The file is too large for GitHub, so the repository explains how to download it.</dd>
   </dl>
@@ -140,18 +141,24 @@ INDEX = """<section class="hero">
     <li><strong>Fitted steps.</strong> One-hot encoding and scaling sit inside each model's pipeline, so they are fitted on training rows only.</li>
     <li><strong>One split, frozen.</strong> The split files were made once and every experiment uses the same ones.</li>
   </ul>
-  <p class="repo" data-items="src/preprocess.py;src/add_sequence_features.py;src/split_data.py"></p>
+  <p class="repo" data-items="src/preprocess.py;src/add_sequence_features.py;src/split_data.py;src/features.py"></p>
 </section>
 <section id="methods">
   <h2><span class="n">04</span>Baselines and methods</h2>
   <p>Three baselines set the bar. A model is useful only if it beats the mean. It shows that position and context matter only if it also beats a table of the average effect of each swap, which knows nothing about position.</p>
   <h3>Feature sets</h3>
   <div class="scroll"><table><thead><tr><th>Set</th><th>Columns</th><th>Idea</th></tr></thead><tbody id="featRows"></tbody></table></div>
+  <h3>How the features were chosen</h3>
+  <p>The feature sets were built in rounds. Each round asked what the previous one was missing. Decisions below rest on validation scores and on the repeated grouped splits, which never touch the test set.</p>
+  <ol class="story" id="fsStory"></ol>
+  <h3>What each column means</h3>
+  <div class="scroll"><table><thead><tr><th>Column</th><th>Set</th><th>Meaning</th></tr></thead><tbody id="glossRows"></tbody>
+  <caption>Amino-acid columns are one-hot encoded; every numeric column is standard-scaled inside the model pipeline, using training rows only.</caption></table></div>
   <h3>Methods</h3>
   <div class="scroll"><table><thead><tr><th>Method</th><th>Core idea</th><th>Why include it</th><th>Feature sets</th></tr></thead><tbody id="methodRows"></tbody>
-  <caption>Each learned model uses one fixed setting (listed in src/evaluate.py). Selection is between algorithms and feature sets, on validation MAE.</caption></table></div>
-  """ + F1F2_FIG + """
-  <p class="repo" data-items="src/train_models.py;src/compare_models.py;src/evaluate.py"></p>
+  <caption>Most learned models use one fixed setting (listed in src/evaluate.py). HistGradientBoosting and XGBoost were also tuned over a small grid on the richest feature set, by validation MAE (see Compare). The ensemble's members were fixed before any result was seen. Selection is between all of these, on validation MAE.</caption></table></div>
+  """ + FS_FIG + """
+  <p class="repo" data-items="src/train_models.py;src/compare_models.py;src/features.py;src/evaluate.py"></p>
 </section>
 <section id="evaluation">
   <h2><span class="n">05</span>Validation protocol</h2>
@@ -185,7 +192,7 @@ INDEX = """<section class="hero">
 </section>
 <section id="ai">
   <h2><span class="n">07</span>AI use and contributions</h2>
-  <p>An AI assistant (Claude, by Anthropic) wrote <code>src/evaluate.py</code> and this website, and helped draft the README. Every number on the site is read from the pipeline's output.</p>
+  <div id="aiUse"></div>
   <div id="myContribution"></div>
 </section>
 <section id="explore-cards"><h2>Explore</h2>
@@ -201,7 +208,7 @@ INDEX = """<section class="hero">
 TOUR = head("Guided tour", "Nine steps through the project", "Each step shows one piece of evidence from the same pipeline output as the rest of the site.") + """
 <div class="tour-bar"><div class="tour-track"><div class="tour-fill" id="tourFill"></div></div><p class="tour-count" id="tourCount"></p></div>
 <section class="tstep" id="step-1"><h2><span class="n">01</span>The question</h2><p>Testing whether one amino-acid change helps or hurts a protein takes an experiment. A model that ranks candidate mutations first would save work, if it works on new proteins.</p>
-<dl class="frame"><dt>One row</dt><dd>One single substitution in one protein, such as W34D.</dd><dt>Target</dt><dd>ΔΔG in kcal/mol. Positive means more stable.</dd><dt>Inputs</dt><dd>The swap, its position, the protein's length, and the neighbouring residues.</dd><dt>Test</dt><dd>Protein families the model never saw.</dd></dl></section>
+<dl class="frame"><dt>One row</dt><dd>One single substitution in one protein, such as W34D.</dd><dt>Target</dt><dd>ΔΔG in kcal/mol. Positive means more stable.</dd><dt>Inputs</dt><dd>The swap, its position, the sequence around it, and how buried the residue is in a predicted structure.</dd><dt>Test</dt><dd>Protein families the model never saw.</dd></dl></section>
 <section class="tstep" id="step-2"><h2><span class="n">02</span>One row of the data</h2><p>Five random rows. The sequence shows six residues either side of the mutated one, in bold.</p>
 <div class="scroll"><table><thead><tr><th>Mutation</th><th>Sequence around it</th><th class="r">ΔΔG</th><th>Cluster</th></tr></thead><tbody id="tourRows"></tbody></table></div><button type="button" class="ghost" id="tourShuffle">Show five other rows</button></section>
 <section class="tstep" id="step-3"><h2><span class="n">03</span>What the target looks like</h2>""" + HIST_FIG + """</section>
@@ -265,7 +272,9 @@ ERRORS = head("Interactive", "Where the predictions fail", "Pick a method and a 
 </section>
 <section id="importance">
   <h2>What the selected model relies on</h2>
-  <div class="figure"><h4>Permutation importance</h4><p class="sub">How much the validation MAE rises when one input column is shuffled (3 repeats).</p><div id="chartImportance"></div></div>
+  <div class="figure"><h4>Permutation importance by kind of information</h4><p class="sub">How much the validation MAE rises when every column of one kind is shuffled together (3 repeats).</p><div id="chartImportanceGroups"></div></div>
+  <p id="importanceGroupNote"></p>
+  <div class="figure"><h4>Permutation importance by column</h4><p class="sub">How much the validation MAE rises when one input column is shuffled (3 repeats).</p><div id="chartImportance"></div></div>
   <p id="importanceNote"></p>
   <p class="repo" data-items="src/evaluate.py"></p>
 </section>
@@ -283,7 +292,11 @@ COMPARE = head("Interactive", "Compare methods", "Pick any two methods, see ever
   <p>This is the ranking the model was selected from. Test MAE is shown for reference only.</p>
   <div class="scroll"><table><thead><tr><th class="r">Rank</th><th>Method</th><th class="r">Validation MAE</th><th class="r">Test MAE</th><th class="r">Mean MAE over repeats</th></tr></thead><tbody id="rankRows"></tbody></table></div>
 </section>
-<section id="features"><h2>F1 against F2</h2>""" + F1F2_FIG + """</section>
+<section id="tuning"><h2>Tuning grid</h2>
+  <p>Each setting was trained on the training rows and scored on validation. The one with the lowest validation MAE was kept. The test set was not used.</p>
+  <div class="scroll"><table><thead><tr><th>Algorithm</th><th>Setting</th><th>Features</th><th class="r">Validation MAE</th></tr></thead><tbody id="tuneRows"></tbody></table></div>
+</section>
+<section id="features"><h2>What each feature set adds</h2>""" + FS_FIG + """</section>
 <section id="claims"><h2>What this supports</h2><div class="claims" data-claims="compare"></div></section>"""
 
 RESULTS = head("Results", "Every result in one place", "Test scores with intervals, the repeated splits, the limitations and the conclusion.") + """
@@ -297,12 +310,18 @@ RESULTS = head("Results", "Every result in one place", "Test scores with interva
   <p id="contextNote"></p>
   <p class="repo" data-items="src/evaluate.py;results/evaluation.json;results/test_predictions.csv.gz"></p>
 </section>
-<section id="limitations"><h2>Limitations</h2><ul id="limits"></ul></section>
+<section id="limitations"><h2>Limitations and sources of prediction error</h2>
+  <p id="limIntro"></p>
+  <ol class="story" id="limits"></ol>
+  <p id="limNote"></p>
+  <h3>Other limitations of the method</h3>
+  <ul id="limOther"></ul>
+</section>
 <section id="conclusion">
   <h2>Conclusion</h2>
   <p id="conclusionText"></p>
-  <p>The clearest finding is about method: the same models look better under random folds than under folds that respect protein families. For data with relatives in it, the split decides how good a model looks.</p>
-  <p>A natural next step is to keep this evaluation and add structural features, such as whether a residue is buried, or embeddings from a protein language model.</p>
+  <p>Two findings stand out. First, information about where the residue sits in the folded protein mattered far more than extra sequence detail or tuning. Second, the split decides how good a model looks: the same models look better under random folds than under folds that respect protein families.</p>
+  <p id="nextStep"></p>
   <div class="claims" data-claims="results"></div>
 </section>"""
 
@@ -316,16 +335,25 @@ python src/train_models.py            # first baselines (F1)
 python src/add_sequence_features.py   # neighbouring residues (F2)
 python src/update_splits.py           # same split for the F2 files
 python src/compare_models.py          # F1 vs F2 comparison
-python src/evaluate.py                # everything on this site
+python src/features.py                # optional: check how many proteins have a structure
+python src/evaluate.py                # everything on this site (adds F3 and F4)
 python -m http.server -d docs         # open http://localhost:8000</pre>
   <dl class="frame">
     <dt>Data</dt><dd>Download <code>Processed_K50_dG_datasets.zip</code> from <a href="https://zenodo.org/records/7401275">Zenodo record 7401275</a> and unzip <code>K50_dG_Dataset1_Dataset2.csv</code> where <code>src/preprocess.py</code> expects it (see README). It is not committed: GitHub rejects files over 100 MB.</dd>
+    <dt>Structures</dt><dd>Download <code>AlphaFold_model_PDBs.zip</code> from the same record and unzip it into <code>data/structures/</code>. <code>src/features.py</code> matches models to proteins by sequence. Without it, F4 is skipped and everything else still runs.</dd>
     <dt>Split</dt><dd><span data-v="config.split_note"></span>. Cluster membership of every row is in the split files.</dd>
     <dt>Environment</dt><dd id="envLine"></dd>
     <dt>Citation</dt><dd>Tsuboyama, K. et al. Mega-scale experimental analysis of protein folding stability in biology and design. <em>Nature</em> 620, 434–444 (2023). Data: doi:10.5281/zenodo.7401275.</dd>
     <dt>AI use</dt><dd>See the README.</dd>
   </dl>
 </section>"""
+
+# author, contribution, AI-use text and repository link come from config.json, so editing them needs
+# only this script, not a new run of src/evaluate.py
+import json
+_cfg = json.loads((DOCS.parent / "config.json").read_text(encoding="utf-8"))
+_about = {k: _cfg.get(k, "") for k in ("author", "contribution", "ai_use", "repo_url")}
+(DOCS / "about.js").write_text("window.ABOUT = " + json.dumps(_about, ensure_ascii=False) + ";\n", encoding="utf-8")
 
 PAGES = {"index": ("Mutation Stability", INDEX), "tour": ("Guided Tour", TOUR), "split": ("The Split", SPLIT), "errors": ("Error Analysis", ERRORS),
          "compare": ("Compare Methods", COMPARE), "results": ("Results", RESULTS), "reproduce": ("Reproduce", REPRODUCE)}

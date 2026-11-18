@@ -15,6 +15,13 @@ What it adds to compare_models.py:
     4. A leakage check: the same models under random folds and under folds that keep clusters together.
     5. Repeated grouped splits of the training + validation rows (the test set is not touched).
     6. Error analysis on the test set and permutation importance on the validation set.
+    7. Two more feature sets from src/features.py: F3 (sequence-derived physicochemical and
+       neighbourhood features, every protein) and F4 (F3 + burial in the AlphaFold model, when
+       data/structures/ holds the AlphaFold PDB files). F3 and F4 are run with the algorithms listed
+       in config.json "extended_algorithms".
+    8. A small tuning grid for HistGradientBoosting and XGBoost on the richest feature set, chosen on
+       validation MAE, and an ensemble that averages the tuned HistGradientBoosting, the tuned XGBoost and
+       the random forest on that set (a rule fixed in advance). Both are ordinary candidates for selection.
 
 Model selection is unchanged: the learned model with the lowest VALIDATION MAE. The test set is only scored.
 """
@@ -27,6 +34,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.ensemble import (AdaBoostRegressor, ExtraTreesRegressor, HistGradientBoostingRegressor,
                               RandomForestRegressor)
 from sklearn.linear_model import Ridge
@@ -34,6 +42,9 @@ from sklearn.model_selection import GroupKFold, GroupShuffleSplit, KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.tree import DecisionTreeRegressor
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from features import NEIGH_SEQ_COLS, POS_SEQ_COLS, SWAP_SEQ_COLS, add_features  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 AAS = "ACDEFGHIKLMNPQRSTVWY"
@@ -62,11 +73,59 @@ def algorithms(seed):
     return algs
 
 
+def tuning_grids(seed):
+    """Small grids, chosen on validation MAE. No early stopping: it would pick the number of trees on a random
+    (not grouped) slice of the training rows."""
+    H = lambda **k: (lambda: HistGradientBoostingRegressor(random_state=seed, early_stopping=False, **k))
+    grids = {"HistGradientBoosting": [
+        ("lr 0.1, 100 trees, 31 leaves (default)", H()),
+        ("lr 0.05, 500 trees, 31 leaves, min leaf 100", H(learning_rate=0.05, max_iter=500, min_samples_leaf=100)),
+        ("lr 0.05, 500 trees, 63 leaves, min leaf 200", H(learning_rate=0.05, max_iter=500, max_leaf_nodes=63, min_samples_leaf=200)),
+        ("lr 0.05, 500 trees, 15 leaves, min leaf 500", H(learning_rate=0.05, max_iter=500, max_leaf_nodes=15, min_samples_leaf=500)),
+        ("lr 0.05, 500 trees, 31 leaves, min leaf 100, half the columns per split",
+         H(learning_rate=0.05, max_iter=500, min_samples_leaf=100, max_features=0.5)),
+        ("same, absolute-error loss", H(learning_rate=0.05, max_iter=500, min_samples_leaf=100, max_features=0.5, loss="absolute_error")),
+        ("lr 0.05, 500 trees, 63 leaves, min leaf 200, absolute-error loss",
+         H(learning_rate=0.05, max_iter=500, max_leaf_nodes=63, min_samples_leaf=200, loss="absolute_error")),
+        ("lr 0.03, 1000 trees, 31 leaves, min leaf 200, L2 1, half the columns",
+         H(learning_rate=0.03, max_iter=1000, min_samples_leaf=200, l2_regularization=1.0, max_features=0.5)),
+    ]}
+    try:
+        from xgboost import XGBRegressor
+        X = lambda **k: (lambda: XGBRegressor(n_jobs=-1, random_state=seed, tree_method="hist", subsample=0.8, **k))
+        grids["XGBoost"] = [
+            ("600 trees, lr 0.05, depth 6, min child 10, 70% columns", X(n_estimators=600, learning_rate=0.05, max_depth=6, min_child_weight=10, colsample_bytree=0.7)),
+            ("600 trees, lr 0.05, depth 4, min child 10, 70% columns", X(n_estimators=600, learning_rate=0.05, max_depth=4, min_child_weight=10, colsample_bytree=0.7)),
+            ("600 trees, lr 0.05, depth 8, min child 50, 70% columns", X(n_estimators=600, learning_rate=0.05, max_depth=8, min_child_weight=50, colsample_bytree=0.7)),
+            ("1000 trees, lr 0.03, depth 6, min child 50, 50% columns", X(n_estimators=1000, learning_rate=0.03, max_depth=6, min_child_weight=50, colsample_bytree=0.5)),
+            ("600 trees, lr 0.05, depth 6, min child 10, absolute-error loss", X(n_estimators=600, learning_rate=0.05, max_depth=6, min_child_weight=10, colsample_bytree=0.7, objective="reg:absoluteerror")),
+        ]
+    except ImportError:
+        pass
+    return grids
+
+
+class Average:
+    """Ensemble: fits each member and averages their predictions."""
+    def __init__(self, makers):
+        self.makers = makers
+
+    def fit(self, df, y):
+        self.members = [mk().fit(df, y) for mk in self.makers]
+        return self
+
+    def predict(self, df):
+        return np.mean([m.predict(df) for m in self.members], axis=0)
+
+
 def pipeline(fs, model):
     """Same preprocessing as train_models.py: one-hot for amino acids, standard scaling for numbers.
-    Both are fitted on the training rows only, because they sit inside the pipeline."""
+    Missing numbers (only the structure columns of proteins without a structure) are filled with the
+    training median, with a 0/1 column marking them. F1 and F2 have no missing values, so for them the
+    imputer changes nothing. Everything is fitted on the training rows only, inside the pipeline."""
+    num = Pipeline([("impute", SimpleImputer(strategy="median", add_indicator=True)), ("scale", StandardScaler())])
     pre = ColumnTransformer([("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), fs["cat"]),
-                             ("num", StandardScaler(), fs["num"])])
+                             ("num", num, fs["num"])])
     return Pipeline([("pre", pre), ("model", model)])
 
 
@@ -166,13 +225,18 @@ def main():
     FS = {"F1": {"cat": [c["original"], c["mutated"]], "num": [c["position"], c["length"]]}}
     FS["F2"] = {"cat": FS["F1"]["cat"] + c["context"], "num": FS["F1"]["num"]}
     print(f"train {len(tr)}  validation {len(va)}  test {len(te)}")
+    finfo = add_features(D, cfg)
+    FS["F3"] = {"cat": FS["F2"]["cat"], "num": FS["F2"]["num"] + finfo["seq_cols"]}
+    if finfo["struct_cols"]:
+        FS["F4"] = {"cat": FS["F3"]["cat"], "num": FS["F3"]["num"] + finfo["struct_cols"]}
+    extended = cfg.get("extended_algorithms", ["Ridge", "Random forest", "HistGradientBoosting", "XGBoost"])
 
     # ---- 1. fit every model on the training rows; score validation and test
     makers = {}
     for name, mk in baselines(c).items():
         makers[name] = ("baseline", "–", mk)
     for alg, mk in algorithms(seed).items():
-        for fs in ("F1", "F2"):
+        for fs in [k for k in FS if k in ("F1", "F2") or alg in extended]:
             makers[f"{alg} ({fs})"] = ("model", fs, (lambda mk=mk, fs=fs: pipeline(FS[fs], mk())))
     pva, pte = {}, {}
     for name, (kind, fs, mk) in makers.items():
@@ -180,9 +244,36 @@ def main():
         m = mk().fit(tr, ytr)
         pva[name], pte[name] = np.asarray(m.predict(va), float), np.asarray(m.predict(te), float)
         print(f"  {name:32s} val MAE {mae(yva, pva[name]):.4f}  ({time.time() - t1:.0f}s)", flush=True)
+    # ---- 1b. tuning grid and ensemble on the richest feature set (validation MAE decides)
+    top, tuning_log = list(FS)[-1], []
+    if cfg.get("tuning", True):
+        for alg, grid in tuning_grids(seed).items():
+            best = None
+            for label, mk in grid:
+                t1 = time.time()
+                m = pipeline(FS[top], mk()).fit(tr, ytr)
+                pv = np.asarray(m.predict(va), float)
+                tuning_log.append({"algorithm": alg, "setting": label, "features": top, "val_mae": mae(yva, pv)})
+                print(f"  tune {alg:22s} {label[:52]:52s} val MAE {mae(yva, pv):.4f}  ({time.time() - t1:.0f}s)", flush=True)
+                if best is None or mae(yva, pv) < best[0]:
+                    best = (mae(yva, pv), label, mk, m, pv)
+            name = f"{alg} tuned ({top})"
+            makers[name] = ("model", top, (lambda mk=best[2]: pipeline(FS[top], mk())))
+            pva[name], pte[name] = best[4], np.asarray(best[3].predict(te), float)
+            for row in tuning_log:
+                if row["algorithm"] == alg:
+                    row["chosen"] = row["setting"] == best[1]
+        members = [n for n in (f"HistGradientBoosting tuned ({top})", f"XGBoost tuned ({top})", f"Random forest ({top})") if n in makers]
+        if len(members) >= 2:
+            name = f"Ensemble ({top})"
+            makers[name] = ("model", top, (lambda members=members: Average([makers[n][2] for n in members])))
+            pva[name], pte[name] = np.mean([pva[n] for n in members], 0), np.mean([pte[n] for n in members], 0)
+            print(f"  {name:32s} val MAE {mae(yva, pva[name]):.4f}  (average of {', '.join(members)})")
     learned = [n for n in makers if makers[n][0] == "model"]
     selected = min(learned, key=lambda n: mae(yva, pva[n]))
     sel_alg, sel_fs = selected.rsplit(" (", 1)[0], makers[selected][1]
+    # for the repeated splits: the plain algorithm behind the selected model, on every feature set
+    rep_base = "HistGradientBoosting" if sel_alg == "Ensemble" else sel_alg.replace(" tuned", "")
     REF = "Substitution table"
     print(f"selected by validation MAE: {selected}")
 
@@ -224,7 +315,9 @@ def main():
         print(f"  leakage check {n:28s} grouped {row['grouped']:.4f}  random {row['random']:.4f}", flush=True)
 
     # ---- 4. repeated grouped splits of training + validation (same settings, nothing retuned)
-    rep_names = list(dict.fromkeys(["Mean", "Mutant residue mean", REF, "Ridge (F1)", "Ridge (F2)", selected]))
+    # the selected algorithm on every feature set it was run with, to see whether the feature-set ranking holds up
+    rep_names = list(dict.fromkeys(["Mean", "Mutant residue mean", REF, "Ridge (F1)", "Ridge (F2)"] +
+                                   [f"{rep_base} ({k})" for k in FS if f"{rep_base} ({k})" in makers] + [selected]))
     repeats = {n: [] for n in rep_names}
     gpool = pool[c["group"]].to_numpy()
     for r in range(cfg["n_repeats"]):
@@ -260,6 +353,13 @@ def main():
         s["proteins"] = int(te.loc[te[c["group"]] == s["slice"], c["protein"]].nunique())
     residuals = {"by_type": slices(stype), "by_origin": slices(origin), "by_size": slices(np.asarray(size), ["|ddG| under 0.5", "0.5 to 1", "1 to 2", "over 2"]), "by_cluster": by_cluster,
                  "pred_sd": float(p.std()), "y_sd": float(yte.std())}
+    if finfo["struct_cols"]:   # burial thirds, with cut points taken from the training rows
+        ok_tr = tr["st_found"].to_numpy() == 1
+        cuts = np.nanpercentile(tr.loc[ok_tr, "st_contacts_10"], [100 / 3, 200 / 3]) if ok_tr.any() else [np.inf, np.inf]
+        cnt10, found = te["st_contacts_10"].to_numpy(), te["st_found"].to_numpy() == 1
+        bur = np.where(~found, "no structure", np.where(cnt10 <= cuts[0], "exposed (fewest neighbours)",
+                       np.where(cnt10 <= cuts[1], "intermediate", "buried (most neighbours)")))
+        residuals["by_burial"] = slices(bur, ["buried (most neighbours)", "intermediate", "exposed (fewest neighbours)", "no structure"])
 
     # ---- 6. permutation importance of the selected model, on validation rows
     fit_sel = makers[selected][2]().fit(tr, ytr)
@@ -275,6 +375,24 @@ def main():
             inc.append(mae(yV, fit_sel.predict(Vp)) - base)
         importance.append({"feature": col, "mae_increase": float(np.mean(inc)), "sd": float(np.std(inc))})
     importance.sort(key=lambda d: -d["mae_increase"])
+    # the same, shuffling whole groups of columns together (one shared row order per group)
+    # grouped by the information a column carries: hyd_wt or vol_mut, for example, only restate which swap it is
+    groups = {"The swap itself": [c["original"], c["mutated"]] + SWAP_SEQ_COLS,
+              "Position and length": FS["F1"]["num"] + POS_SEQ_COLS,
+              "Sequence neighbourhood": c["context"] + NEIGH_SEQ_COLS,
+              "Burial in the AlphaFold model": finfo["struct_cols"]}
+    importance_groups = []
+    for gname, cols in groups.items():
+        cols = [x for x in cols if x in FS[sel_fs]["cat"] + FS[sel_fs]["num"]]
+        if not cols:
+            continue
+        inc = []
+        for r in range(cfg["importance_repeats"]):
+            order = np.random.default_rng(seed + 100 + r).permutation(len(V))
+            Vp = V.copy()
+            Vp[cols] = V[cols].iloc[order].to_numpy()
+            inc.append(mae(yV, fit_sel.predict(Vp)) - base)
+        importance_groups.append({"group": gname, "columns": cols, "mae_increase": float(np.mean(inc)), "sd": float(np.std(inc))})
     print(f"  importance done  {time.time() - t0:.0f}s", flush=True)
 
     # ---- 7. rows for the website: test predictions, sandbox rows, parity checks
@@ -315,13 +433,15 @@ def main():
         "len_min": int(allrows[c["length"]].min()), "len_max": int(allrows[c["length"]].max()),
         "hist": {"lo": lo, "step": step, "designed": np.histogram(yall[des], edges)[0].tolist(), "natural": np.histogram(yall[~des], edges)[0].tolist()},
         "features": {k: v["cat"] + v["num"] for k, v in FS.items()},
+        "feature_info": {k: v for k, v in finfo.items()},
+        "extended_algorithms": [a for a in extended if any(m.startswith(a + " (") for m in makers)],
     }
     import sklearn, scipy
     out = {"config": cfg, "generated": time.strftime("%Y-%m-%d"), "selected": selected, "ref": REF,
            "versions": {"python": sys.version.split()[0], "numpy": np.__version__, "pandas": pd.__version__,
                         "scikit-learn": sklearn.__version__, "scipy": scipy.__version__},
            "summary": summary, "models": models, "leak": leak, "repeats": rep_out, "residuals": residuals,
-           "importance": importance, "test_rows": test_rows, "sandbox": sandbox}
+           "importance": importance, "importance_groups": importance_groups, "tuning": tuning_log, "rep_base": rep_base, "test_rows": test_rows, "sandbox": sandbox}
     (ROOT / "results" / "evaluation.json").write_text(json.dumps(out, indent=1, ensure_ascii=False), encoding="utf-8")
     (ROOT / "docs" / "results.js").write_text("window.RESULTS = " + json.dumps(out, separators=(",", ":"), ensure_ascii=False) + ";\n", encoding="utf-8")
 

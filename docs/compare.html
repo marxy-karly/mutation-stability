@@ -29,19 +29,24 @@
   <p>This is the ranking the model was selected from. Test MAE is shown for reference only.</p>
   <div class="scroll"><table><thead><tr><th class="r">Rank</th><th>Method</th><th class="r">Validation MAE</th><th class="r">Test MAE</th><th class="r">Mean MAE over repeats</th></tr></thead><tbody id="rankRows"></tbody></table></div>
 </section>
-<section id="features"><h2>F1 against F2</h2><div class="figure">
-    <h4>Adding neighbouring residues (F2) changes little</h4>
-    <p class="sub">Validation MAE for each algorithm with feature set F1 and with F2 (kcal/mol, lower is better).</p>
-    <div class="legend"><span><i class="s1"></i>F1: swap, position, length</span><span><i class="s2"></i>F2: F1 + two residues on each side</span></div>
-    <div id="chartF1F2"></div>
+<section id="tuning"><h2>Tuning grid</h2>
+  <p>Each setting was trained on the training rows and scored on validation. The one with the lowest validation MAE was kept. The test set was not used.</p>
+  <div class="scroll"><table><thead><tr><th>Algorithm</th><th>Setting</th><th>Features</th><th class="r">Validation MAE</th></tr></thead><tbody id="tuneRows"></tbody></table></div>
+</section>
+<section id="features"><h2>What each feature set adds</h2><div class="figure">
+    <h4 id="fsTitle"></h4>
+    <p class="sub">Validation MAE for each algorithm on each feature set it was run with (kcal/mol, lower is better).</p>
+    <div class="legend" id="fsLegend"></div>
+    <div id="chartFS"></div>
   </div>
-  <p id="f1f2Note"></p></section>
+  <p id="fsNote"></p></section>
 <section id="claims"><h2>What this supports</h2><div class="claims" data-claims="compare"></div></section>
 </main>
 <footer id="foot"></footer>
 </div>
 <div id="tip" role="status"></div>
 <script src="results.js"></script>
+<script src="about.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

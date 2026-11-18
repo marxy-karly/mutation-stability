@@ -5,10 +5,25 @@
   var R = window.RESULTS;
   if (!R) { document.body.insertAdjacentHTML('afterbegin', '<p style="padding:1rem">results.js is missing. Run <code>python src/evaluate.py</code> first.</p>'); return; }
   var S = R.summary, C = R.config, UNIT = 'kcal/mol', REF = R.ref;
+  var AB = window.ABOUT || {};   // docs/about.js, written by tools/build_pages.py from config.json
+  ['author', 'contribution', 'ai_use', 'repo_url'].forEach(function (k) { if (k in AB) C[k] = AB[k]; });
   var M = {}; R.models.forEach(function (m) { M[m.name] = m; });
   var SEL = M[R.selected], MEAN = M['Mean'], RM = M[REF], REP = R.repeats, NREP = C.n_repeats;
   var AAS = 'ACDEFGHIKLMNPQRSTVWY', CATS = AAS.split('').concat(['EDGE']);
   var LEARNED = R.models.filter(function (m) { return m.kind === 'model'; });
+  var FI = S.feature_info || { seq_cols: [], struct_cols: [] }, HAS_ST = !!(FI.struct_cols && FI.struct_cols.length);
+  var ALLSETS = ['F1', 'F2', 'F3', 'F4'], FSETS = ALLSETS.filter(function (k) { return S.features[k]; });
+  var FS_DESC = { F1: 'Which swap, where, and how long the protein is', F2: 'Adds the two residues on each side',
+    F3: 'Adds how the swap changes hydrophobicity, size, charge and helix propensity; where the residue sits; and how hydrophobic its neighbourhood is, including the residues that would face the same way in a helix or strand',
+    F4: 'Adds burial at the mutated position in the AlphaFold model of the unmutated protein' };
+  var FS_SHORT = { F1: 'F1: swap, position, length', F2: 'F2: F1 + two residues each side', F3: 'F3: F2 + sequence-derived numbers', F4: 'F4: F3 + burial (AlphaFold)' };
+  var FS_WORDS = { F1: 'which amino acid is swapped and where', F2: 'which amino acid is swapped, where, and its neighbours', F3: 'the swap, its position, its neighbours and sequence-derived physical properties', F4: 'the swap, its position, its neighbours, sequence-derived physical properties and burial in a predicted structure' };
+  function setsOf(a) { return FSETS.filter(function (k) { return M[a + ' (' + k + ')']; }); }
+  var covText = '';
+  if (HAS_ST) {
+    var CV = FI.coverage;
+    covText = pct(CV.train.rows_share) + ' of training, ' + pct(CV.validation.rows_share) + ' of validation and ' + pct(CV.test.rows_share) + ' of test mutations have a matched structure (' + (FI.structures_read ? n0(FI.structures_read) + ' model files read' : '') + ').';
+  }
 
   // ------------------------------------------------------------------ helpers
   var DUMMY = document.createElement('div');
@@ -43,7 +58,7 @@
   var isPreview = /PREVIEW/.test(C.dataset_label);
   var lead = '<strong>' + { better: 'Partly.', same: 'Not reliably.', worse: 'No.' }[VM] + '</strong> On ' + n0(S.n_test) + ' test mutations from ' + S.c_test + ' protein clusters the models never saw, the selected model (' + esc(SEL.name) + ') was off by ' + f3(SEL.test_mae) + ' ' + UNIT + ' on average (MAE), against ' + f3(MEAN.test_mae) + ' for always predicting the average. ' +
     'A plain table of the average effect of each amino-acid swap gets ' + f3(RM.test_mae) + ': ' +
-    { same: 'the selected model cannot be told apart from it.', better: 'the selected model beats it by a small but measurable margin.', worse: 'the table does better than the selected model.' }[VR];
+    { same: 'the selected model cannot be told apart from it.', better: SEL.diff_vs_ref < -0.05 ? 'the selected model beats it clearly, by ' + f3(-SEL.diff_vs_ref) + ' ' + UNIT + '.' : 'the selected model beats it by a small but measurable margin.', worse: 'the table does better than the selected model.' }[VR];
   $('answer').innerHTML = lead;
   $('facts').innerHTML =
     '<div><dt>Mean baseline, test MAE</dt><dd>' + f3(MEAN.test_mae) + '<small>' + UNIT + '</small></dd></div>' +
@@ -67,9 +82,12 @@
     ['Split <code>mut_type</code> into original residue, position and new residue; add sequence length', 'These are the F1 features.', 'Nothing learned'],
     ['Check that every sequence uses the 20 amino-acid letters, the position is inside it, and the new residue sits at that position', 'Catches mislabelled rows. Every row checked passed.', 'Nothing learned'],
     ['Add the two residues on each side of the mutation, with <code>EDGE</code> past the ends of the chain', 'These four extra columns make F2. <code>EDGE</code> avoids missing values at the ends.', 'Nothing learned'],
-    ['One-hot encode the amino acids and standard-scale position and length', 'Models need numbers. Scaling makes ridge\'s penalty fair across columns.', 'Training rows only: both sit inside the model pipeline'],
-    ['No imputation, no clipping', 'No feature is missing, and ΔΔG is used as provided.', '–']
-  ];
+    ['Rebuild each wild-type sequence by putting the original residue back at the mutated position, then compute the F3 columns with fixed published scales (Kyte–Doolittle hydrophobicity, Zamyatnin volume, Pace–Scholtz helix propensity)', 'Gives the models physical meaning the one-hot columns lack, and a sequence-only hint of burial: a hydrophobic neighbourhood, or hydrophobic residues on the same face of a helix (i±3, i±4) or strand (i±2).', 'Nothing learned'],
+    HAS_ST ? ['Match each wild type to an AlphaFold model by sequence (identical, at most ' + (C.structure_max_mismatch || 3) + ' differences, or one containing the other). At the mutated position, count residues within 8 and 10 Å, the half-sphere exposure and AlphaFold\'s confidence', 'Burial strongly shapes stability effects and the sequence alone cannot show it. ' + covText, 'Nothing learned'] : null,
+    ['One-hot encode the amino acids and standard-scale every numeric column', 'Models need numbers. Scaling makes ridge\'s penalty fair across columns.', 'Training rows only: both sit inside the model pipeline'],
+    HAS_ST ? ['Fill missing structure values with the training median, plus a 0/1 column marking them', 'Proteins without a matched structure have no burial values. F1 to F3 have no missing values.', 'Training rows only: inside the model pipeline'] : ['No imputation', 'No feature is missing.', '–'],
+    ['No clipping', 'ΔΔG is used as provided.', '–']
+  ].filter(Boolean);
   $('prepRows').innerHTML = prep.map(function (r) { return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td></tr>'; }).join('');
 
   // ------------------------------------------------------------------ methods
@@ -83,21 +101,85 @@
     'Extra trees': ['Like a random forest, but split points are chosen at random.', 'More randomness, often less overfitting.'],
     'AdaBoost': ['Shallow trees in sequence, each focusing on the rows the earlier ones got wrong.', 'The classic boosting method.'],
     'HistGradientBoosting': ['Trees added one at a time, each fitted to the remaining error, on binned features.', 'Usually the strongest method on tables like this.'],
-    'XGBoost': ['Gradient boosting with regularization and row subsampling.', 'A widely used strong learner, for comparison.']
+    'XGBoost': ['Gradient boosting with regularization and row subsampling.', 'A widely used strong learner, for comparison.'],
+    'HistGradientBoosting tuned': ['HistGradientBoosting with the setting that had the lowest validation MAE in a small grid (table on the Compare page).', 'Checks how much one fixed setting left on the table.'],
+    'XGBoost tuned': ['XGBoost with the setting that had the lowest validation MAE in a small grid.', 'The same check for XGBoost.'],
+    'Ensemble': ['Average of the tuned HistGradientBoosting, the tuned XGBoost and the random forest, on the same features.', 'Averaging models that err differently usually lowers error. The members were fixed before any result was seen.']
   };
   var algs = []; R.models.forEach(function (m) { if (algs.indexOf(m.algorithm) < 0) algs.push(m.algorithm); });
   $('methodRows').innerHTML = algs.map(function (a) {
     var i = INFO[a] || ['', ''], base = M[a];
-    return '<tr><td><strong>' + esc(a) + '</strong>' + (base && base.kind === 'baseline' ? '<span class="pill">baseline</span>' : '') + '</td><td>' + i[0] + '</td><td>' + i[1] + '</td><td>' + (base ? '–' : 'F1 and F2') + '</td></tr>';
+    return '<tr><td><strong>' + esc(a) + '</strong>' + (base && base.kind === 'baseline' ? '<span class="pill">baseline</span>' : '') + '</td><td>' + i[0] + '</td><td>' + i[1] + '</td><td>' + (base ? '–' : setsOf(a).join(', ')) + '</td></tr>';
   }).join('');
-  $('featRows').innerHTML = '<tr><td>F1</td><td>' + S.features.F1.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(', ') + '</td><td>Which swap, where, and how long the protein is</td></tr>' +
-    '<tr><td>F2</td><td>F1 + ' + S.features.F2.filter(function (x) { return S.features.F1.indexOf(x) < 0; }).map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(', ') + '</td><td>Adds the neighbouring residues</td></tr>';
+  $('featRows').innerHTML = FSETS.map(function (k, i) {
+    var prev = i ? S.features[FSETS[i - 1]] : [], cols = S.features[k].filter(function (x) { return prev.indexOf(x) < 0; });
+    return '<tr><td>' + k + '</td><td>' + (i ? FSETS[i - 1] + ' + ' : '') + cols.map(function (x) { return '<code>' + esc(x) + '</code>'; }).join(', ') + '</td><td>' + FS_DESC[k] + '</td></tr>';
+  }).join('');
 
-  // F1 vs F2
-  var pairs = algs.filter(function (a) { return M[a + ' (F1)'] && M[a + ' (F2)']; });
-  var f2wins = pairs.filter(function (a) { return M[a + ' (F2)'].val_mae < M[a + ' (F1)'].val_mae; });
-  var maxGap = Math.max.apply(null, pairs.map(function (a) { return Math.abs(M[a + ' (F2)'].val_mae - M[a + ' (F1)'].val_mae); }));
-  $('f1f2Note').innerHTML = 'F2 had the lower validation MAE for ' + f2wins.length + ' of ' + pairs.length + ' algorithms. The largest gap is ' + f3(maxGap) + ' ' + UNIT + '. For scale, the selected model\'s test MAE has a 95% interval ' + f3(SEL.test_mae_ci[1] - SEL.test_mae_ci[0]) + ' wide, so these differences are small next to the uncertainty of a single split.';
+  // ---- glossary: one row per column
+  var GLOSS = {
+    aa_original: 'Amino acid at the position before the mutation', aa_mutated: 'Amino acid put in by the mutation',
+    position: 'Position of the mutation in the chain, counted from 1', sequence_length: 'Number of residues in the protein',
+    residue_minus_2: 'Amino acid two positions before the mutation (EDGE past the start)', residue_minus_1: 'Amino acid one position before',
+    residue_plus_1: 'Amino acid one position after', residue_plus_2: 'Amino acid two positions after (EDGE past the end)',
+    hyd_wt: 'Hydrophobicity of the original residue (Kyte–Doolittle; higher = more water-repelling)', hyd_mut: 'Hydrophobicity of the new residue',
+    hyd_delta: 'Change in hydrophobicity (new − original)', vol_wt: 'Side-chain volume of the original residue (Å³, Zamyatnin)',
+    vol_mut: 'Volume of the new residue', vol_delta: 'Change in volume; large positive values mean a bigger residue squeezed in',
+    charge_delta: 'Change in charge (K, R = +1; D, E = −1)', helix_delta: 'Change in helix propensity (Pace–Scholtz; positive = worse for a helix, proline is worst)',
+    rel_position: 'Position as a fraction of the chain: 0 = first residue, 1 = last', dist_to_end: 'Residues to the nearest end of the chain',
+    win_hyd_4: 'Mean hydrophobicity of the 4 residues on each side (not the residue itself)', win_hyd_8: 'The same over 8 residues on each side',
+    win_charge_4: 'Net charge of the 4 residues on each side', helix_face_hyd: 'Mean hydrophobicity of residues i±3 and i±4, which face the same way in a helix',
+    strand_face_hyd: 'Mean hydrophobicity of residues i±2, which face the same way in a strand'
+  };
+  var SD = FI.struct_desc || {};
+  $('glossRows').innerHTML = FSETS.map(function (k, i) {
+    var prev = i ? S.features[FSETS[i - 1]] : [];
+    return S.features[k].filter(function (x) { return prev.indexOf(x) < 0; }).map(function (x) {
+      var d = GLOSS[x] || SD[x] || ''; return '<tr><td><code>' + esc(x) + '</code></td><td>' + k + '</td><td>' + esc(d.charAt(0).toUpperCase() + d.slice(1)) + '</td></tr>';
+    }).join('');
+  }).join('');
+
+  // feature sets: what each added set changes, on validation MAE
+  var fsAlgs = algs.filter(function (a) { return setsOf(a).length > 1; });
+  function stepText(from, to, what) {
+    var both = algs.filter(function (a) { return M[a + ' (' + from + ')'] && M[a + ' (' + to + ')']; });
+    if (!both.length) return '';
+    var d = both.map(function (a) { return M[a + ' (' + to + ')'].val_mae - M[a + ' (' + from + ')'].val_mae; });
+    var nb = d.filter(function (x) { return x < 0; }).length;
+    return 'Adding ' + what + ' (' + from + ' → ' + to + ') lowered validation MAE for ' + nb + ' of ' + both.length + ' algorithms (change ' + sg(Math.min.apply(null, d)) + ' to ' + sg(Math.max.apply(null, d)) + ' ' + UNIT + '). ';
+  }
+  var bestCount = {}; fsAlgs.forEach(function (a) { var b = setsOf(a).reduce(function (x, y) { return M[a + ' (' + y + ')'].val_mae < M[a + ' (' + x + ')'].val_mae ? y : x; }); bestCount[b] = (bestCount[b] || 0) + 1; });
+  var topSet = Object.keys(bestCount).sort(function (x, y) { return bestCount[y] - bestCount[x]; })[0];
+  $('fsTitle').textContent = FSETS.length > 2 ? topSet + ' gives the lowest validation MAE for ' + bestCount[topSet] + ' of ' + fsAlgs.length + ' algorithms' : 'Adding neighbouring residues (F2) changes little';
+  $('fsLegend').innerHTML = FSETS.map(function (k) { return '<span><i class="s' + (ALLSETS.indexOf(k) + 1) + '"></i>' + FS_SHORT[k] + '</span>'; }).join('');
+  var RB = R.rep_base || SEL.algorithm, repSets = setsOf(RB).filter(function (k) { return REP[RB + ' (' + k + ')']; }), repText = '';
+  if (repSets.length > 1) {
+    var lastS = repSets[repSets.length - 1], firstS = repSets.indexOf('F2') >= 0 && lastS !== 'F2' ? 'F2' : repSets[0];
+    var ra = REP[RB + ' (' + lastS + ')'].mae, rb = REP[RB + ' (' + firstS + ')'].mae, wins = ra.filter(function (v, i) { return v < rb[i]; }).length;
+    repText = 'Across ' + NREP + ' repeated grouped splits of the training and validation rows, ' + esc(RB) + ' with ' + lastS + ' beat the same algorithm with ' + firstS + ' in ' + wins + '. ';
+  }
+  var fsSummary = stepText('F1', 'F2', 'the neighbouring residues') + stepText('F2', 'F3', 'the sequence-derived numbers') + stepText('F3', 'F4', 'burial from the AlphaFold models');
+  // ---- the story of how the features were chosen, from the numbers
+  function bestOn(k, plain) {
+    return LEARNED.filter(function (m) { return m.features === k && (!plain || !/tuned|Ensemble/.test(m.algorithm)); })
+      .sort(function (a, b) { return a.val_mae - b.val_mae; })[0];
+  }
+  function vsTable(m) { var d = m.val_mae - RM.val_mae; return esc(m.name) + ', validation MAE ' + f3(m.val_mae) + ' against ' + f3(RM.val_mae) + ' for the substitution table (' + sg(d) + ')'; }
+  var story = [], b1 = bestOn('F1', true), b2 = bestOn('F2', true), b3 = bestOn('F3', true), b4 = bestOn('F4', true);
+  if (b1) story.push('<strong>Start with the swap alone (F1).</strong> The first question is how much is explained just by which amino acid is replaced by which, and where. The substitution-table baseline answers the first half with no learning at all. Best F1 model: ' + vsTable(b1) + '.');
+  if (b2) story.push('<strong>Add the sequence neighbours (F2).</strong> A residue\'s effect could depend on what surrounds it, so the two residues on each side were added. Best F2 model: ' + vsTable(b2) + '. ' + (Math.abs(b2.val_mae - b1.val_mae) < 0.02 ? 'Barely different from F1: the models were still learning little beyond which swap it is.' : ''));
+  story.push('<strong>Ask what is missing.</strong> If a model cannot get far past a table of average swap effects, it lacks information about the residue\'s environment. In stability research, the strongest known driver of a mutation\'s effect is whether the residue is buried in the protein core or exposed on the surface. Burial is not in the sequence directly, so the next two rounds went after it.');
+  if (b3) story.push('<strong>Estimate burial from sequence (F3).</strong> First the cheap route, using only the sequence: physical properties of the swap from published scales, and the hydrophobicity of the residues that would face the same way in a helix or strand, since a hydrophobic face suggests a buried one. Best F3 model: ' + vsTable(b3) + (b2 ? ', a change of ' + sg(b3.val_mae - b2.val_mae) + ' from F2.' : '.'));
+  if (b4) story.push('<strong>Measure burial in a predicted structure (F4).</strong> AlphaFold models of the unmutated proteins exist before any experiment, so using them is not leakage. Burial at the mutated position was measured several ways: neighbour counts, half-sphere exposure, relative surface area, and burial × property change. ' + covText + ' Best F4 model: ' + vsTable(b4) + (b3 ? ', a change of ' + sg(b4.val_mae - b3.val_mae) + ' from F3.' : '.') + (repText ? ' ' + repText : ''));
+  var tuned = LEARNED.filter(function (m) { return /tuned|Ensemble/.test(m.algorithm); });
+  if (tuned.length && b4) { var bt = tuned.slice().sort(function (a, b) { return a.val_mae - b.val_mae; })[0]; story.push('<strong>Only then tune.</strong> With the features settled, a small grid for the two boosting methods and an ensemble were tried on ' + b4.features + '. Best: ' + vsTable(bt) + ', ' + sg(bt.val_mae - b4.val_mae) + ' from the best untuned F4 model. Tuning came last because better information usually beats better settings.'); }
+  story.push('<strong>Outcome on the test set.</strong> The selected model, ' + esc(SEL.name) + ', has test MAE ' + f3(SEL.test_mae) + ' against ' + f3(RM.test_mae) + ' for the substitution table: ' + sg(SEL.diff_vs_ref) + ' (95% interval ' + civ(SEL.diff_vs_ref_ci) + '), ' + { better: 'a real improvement over knowing only the swap.', same: 'not reliably better than knowing only the swap.', worse: 'worse than the table.' }[VR]);
+  var MC = FI.match_counts || {};
+  story.push('<strong>Choices made along the way.</strong> ' + (HAS_ST ? 'Structures were matched to proteins by sequence, not file name, because many proteins are variants of another (for example <code>1A0N.pdb_L7S</code>); ' + (MC.exact || 0) + ' wild types matched exactly, ' + (MC.near || 0) + ' with a few differences, ' + (MC.none || 0) + ' not at all. Missing structure values are filled with the training median plus a 0/1 flag. ' : '') +
+    'F3 and F4 were run for ' + (S.extended_algorithms || []).join(', ') + ' only, to keep the run time manageable; the weaker algorithms on F1 and F2 gave no reason to expect them to lead. Every feature is computed by a fixed rule, so nothing about the features is learned from validation or test rows.');
+  $('fsStory').innerHTML = story.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+
+  $('fsNote').innerHTML = fsSummary + repText + 'For scale, the selected model\'s test MAE has a 95% interval ' + f3(SEL.test_mae_ci[1] - SEL.test_mae_ci[0]) + ' wide.';
 
   // ------------------------------------------------------------------ leakage
   var lk = R.leak.slice().sort(function (a, b) { return (b.grouped - b.random) / b.grouped - (a.grouped - a.random) / a.grouped; })[0];
@@ -120,25 +202,41 @@
   $('forestTitle').textContent = LEARNED.some(function (m) { return m.diff_vs_mean_ci[1] < 0; }) ? 'Most models beat predicting the mean' : 'No model is reliably better than predicting the mean';
   $('forestTitle2').textContent = anyRef.length ? 'Beating the substitution table: ' + anyRef.map(function (m) { return m.name; }).join(', ') : 'No learned model reliably beats the substitution table';
   $('contextNote').innerHTML = 'For scale, ΔΔG has a standard deviation of ' + f(S.target_sd) + ' ' + UNIT + '. The selected model\'s predictions have a standard deviation of ' + f(R.residuals.pred_sd) + ' on the test set, against ' + f(R.residuals.y_sd) + ' for the measured values: it hedges toward the average and rarely predicts large effects.';
-  var imp = R.importance;
+  var imp = R.importance, ig = (R.importance_groups || []).slice().sort(function (a, b) { return b.mae_increase - a.mae_increase; });
+  if (ig.length) $('importanceGroupNote').innerHTML = 'Shuffling every column that describes ' + esc(ig[0].group.toLowerCase()) + ' at once raises the validation MAE by ' + f3(ig[0].mae_increase) + ' ' + UNIT + (ig.length > 1 ? '; ' + ig.slice(1).map(function (g) { return esc(g.group.toLowerCase()) + ' ' + sg(g.mae_increase); }).join(', ') : '') + '. Columns are grouped by what they describe, because related columns stand in for each other: <code>hyd_wt</code> only restates which residue was there, so shuffling <code>aa_original</code> alone hides its importance.';
   $('importanceNote').innerHTML = 'Shuffling <code>' + esc(imp[0].feature) + '</code> raises the selected model\'s validation MAE by ' + f3(imp[0].mae_increase) + ' ' + UNIT + ', more than any other input. ' + (imp.length > 1 ? 'Next is <code>' + esc(imp[1].feature) + '</code> (' + sg(imp[1].mae_increase) + '). ' : '') + 'An input whose shuffling changes nothing is not being used. This shows what the model relies on, not what causes stability.';
 
   // ------------------------------------------------------------------ limitations and conclusion
+  var RSZ = R.residuals.by_size, small = RSZ.filter(function (x) { return /under/.test(x.slice); })[0], big = RSZ.filter(function (x) { return x.slice === 'over 2'; })[0];
+  var selLeak = R.leak.filter(function (r) { return r.name === R.selected; })[0];
+  $('limIntro').innerHTML = 'Despite the gains from sequence-derived and structural features, the selected model (' + esc(SEL.name) + ') has a test MAE of ' + f3(SEL.test_mae) + ' ' + UNIT + '. Several limitations constrain further improvement.';
   var lim = [
-    '<strong>The features are crude.</strong> They know the swap, its position and its neighbours, but not the 3D structure, so they cannot tell whether a residue is buried. The result is about these features, not about what sequence could predict.',
+    '<strong>Incomplete representation of the structural environment.</strong> Folding stability is governed by detailed three-dimensional interactions that engineered features cannot fully represent. ' + (HAS_ST ? 'The model uses AlphaFold-derived burial, solvent accessibility and neighbourhood properties, but these describe how crowded and exposed a residue is, not which interactions it makes. ' : 'The features carry no 3D structure at all. ') + 'Hydrogen-bond networks, salt bridges and other electrostatic interactions, side-chain packing, disulfide bonds and specific long-range contacts are not represented explicitly.',
+    '<strong>Wild-type structure, not mutant structure.</strong> ' + (HAS_ST ? 'All structural features come from a predicted structure of the unmutated protein, but the goal is the effect of a change. ' : '') + 'A mutation can disrupt packing, introduce steric clashes, break hydrogen bonds, or change solvent exposure and local conformation. The wild-type structure cannot show these rearrangements; comparing wild-type and mutant structures could add information.',
+    '<strong>Uncertainty in the target.</strong> <code>ddG_ML</code> is not a direct, noise-free measurement. It is the difference of two stabilities, each inferred from proteolysis measurements through a model of the assay, so experimental noise, the assay\'s measurable range and the modelling assumptions all enter the label. Even a perfect model would have a non-zero error against it. The size of this noise floor was not estimated here; the confidence-interval columns in the data would allow it.',
+    '<strong>Generalization to unseen protein clusters.</strong> No test protein family was seen in training, a harder test than a random split' + (selLeak ? ' (random folds make the selected model look ' + pct((selLeak.grouped - selLeak.random) / selLeak.grouped) + ' better)' : '') + '. Relationships learned on the training families do not transfer perfectly' + (SEL.test_mae - SEL.val_mae > 0.03 ? ': the same model has validation MAE ' + f3(SEL.val_mae) + ' but test MAE ' + f3(SEL.test_mae) + ', because the test families are less like the training data' : '') + '. With only ' + S.c_test + ' test clusters, a few unusual families weigh heavily.',
+    '<strong>Underprediction of extreme stability changes.</strong> Minimizing average absolute error makes predictions conservative when the inputs do not separate extreme mutations from ordinary ones.' + (small && big ? ' The residual analysis shows this: test MAE is ' + f3(small.mae) + ' for mutations with |ΔΔG| under 0.5 but ' + f3(big.mae) + ' for those over 2, where the predicted value is on average ' + f(Math.abs(big.bias)) + ' ' + UNIT + ' too ' + (big.bias > 0 ? 'high, that is, less destabilizing than measured' : 'low') + '. ' : ' ') + 'Predictions have a standard deviation of ' + f(R.residuals.pred_sd) + ', against ' + f(R.residuals.y_sd) + ' for the measured values.',
+    '<strong>Directions for further improvement.</strong> Protein language-model representations such as ESM-2, which carry evolutionary information about each position; comparing predicted wild-type and mutant structures; more detailed residue-interaction features; uncertainty-aware training that down-weights noisy labels; and refitting the final model on the training and validation rows together.'
+  ];
+  $('limits').innerHTML = lim.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+  $('limNote').innerHTML = 'How much each of these contributes to the remaining error has not been quantified separately. They are plausible sources of error and directions for further work, not an established account of the whole residual.';
+  var other = [
     '<strong>Only measurable mutations are in the data.</strong> ' + (S.n_no_target ? pct(S.n_no_target / S.n_single) + ' of single substitutions have no ΔΔG. ' : '') + 'The models are scored on in-range mutations; their errors on strongly destabilizing ones are unknown.',
+    HAS_ST ? '<strong>Structures are predictions, and a few proteins have none.</strong> ' + covText + ' Proteins without a model get the training median and a 0/1 flag.' : null,
     '<strong>The test set is smaller than it looks.</strong> ' + n0(S.n_test) + ' mutations but only ' + S.c_test + ' independent clusters, so the intervals are wide and one large cluster can move the result.',
     '<strong>The split proportions are uneven.</strong> Grouping whole clusters gave ' + pct(S.n_train / S.n_kept) + ' / ' + pct(S.n_val / S.n_kept) + ' / ' + pct(S.n_test / S.n_kept) + ' instead of 70 / 15 / 15, because cluster sizes are very unequal.',
-    '<strong>No hyperparameter tuning.</strong> Each algorithm used one fixed setting. Selection was only between algorithms and feature sets, on validation MAE.',
-    '<strong>The test set had been scored once before</strong>, for an earlier selected model, before this evaluation script existed. Selection here uses validation only, and the repeated splits do not use the test set.',
+    (R.tuning && R.tuning.length) ? '<strong>Tuning was small.</strong> Only HistGradientBoosting and XGBoost were tuned, over ' + R.tuning.length + ' settings in all, on ' + R.tuning[0].features + ', by validation MAE; the other algorithms use one fixed setting. Because the setting was picked on validation, validation MAE of the tuned models is slightly optimistic. The test score is not, since the test set played no part.'
+      : '<strong>No hyperparameter tuning.</strong> Each algorithm used one fixed setting. Selection was only between algorithms and feature sets, on validation MAE.',
+    '<strong>The test set was scored after each round of feature work.</strong> Every choice was made on validation, but knowing earlier test scores could still shape what was tried next. The repeated grouped splits, which never use the test set, are the check on that: they should rank the feature sets the same way.',
     '<strong>Column meanings are inferred.</strong> The file has no data dictionary; the sign of ΔΔG and the designed/natural reading of cluster labels come from the data and the paper.',
-    '<strong>Prediction is not causation.</strong> An association between a residue and stability does not show that introducing it causes the change.'
-  ];
-  if (isPreview) lim.unshift('<strong>These numbers are a preview.</strong> They come from a 10,000-row sample. Run <code>src/evaluate.py</code> on the full splits to replace every number and chart.');
-  $('limits').innerHTML = lim.map(function (t) { return '<li>' + t + '</li>'; }).join('');
-  $('conclusionText').innerHTML = 'Using only which amino acid is swapped, where, and its neighbours, ' + esc(SEL.name) + ' predicts ΔΔG for unseen protein families with MAE ' + f3(SEL.test_mae) + ' ' + UNIT + ', ' + sg(SEL.diff_vs_mean) + ' relative to the mean (' + civ(SEL.diff_vs_mean_ci) + '). ' +
-    (VR === 'same' ? 'It does not measurably beat a table of average effects per swap, so most of what it learned is which swap is being made.' : VR === 'better' ? 'It beats a table of average effects per swap by ' + sg(-SEL.diff_vs_ref) + ', so position or context adds a little.' : 'A table of average effects per swap did better.') +
-    ' The neighbouring-residue features (F2) made no difference larger than the noise.';
+    '<strong>Prediction is not causation.</strong> An association between a feature and stability does not show that introducing it causes the change.'
+  ].filter(Boolean);
+  if (isPreview) other.unshift('<strong>These numbers are a preview.</strong> They come from a 10,000-row sample. Run <code>src/evaluate.py</code> on the full splits to replace every number and chart.');
+  $('limOther').innerHTML = other.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+  $('conclusionText').innerHTML = 'Using ' + FS_WORDS[SEL.features] + ', ' + esc(SEL.name) + ' predicts ΔΔG for unseen protein families with MAE ' + f3(SEL.test_mae) + ' ' + UNIT + ', ' + sg(SEL.diff_vs_mean) + ' relative to the mean (' + civ(SEL.diff_vs_mean_ci) + '). ' +
+    (VR === 'same' ? 'It does not measurably beat a table of average effects per swap, so most of what it learned is which swap is being made.' : VR === 'better' ? 'It beats a table of average effects per swap by ' + f3(-SEL.diff_vs_ref) + ' ' + UNIT + (SEL.diff_vs_ref < -0.05 ? ', so knowing where the residue sits in the folded protein adds substantially to knowing which swap it is.' : ', so position or context adds a little.') : 'A table of average effects per swap did better.') +
+    ' ' + fsSummary + repText;
+  $('nextStep').innerHTML = HAS_ST ? 'Natural next steps are to keep this evaluation and add embeddings from a protein language model, which carry evolutionary information that neither these features nor one predicted structure hold, and features that compare the wild-type and mutant structures.' : 'A natural next step is to keep this evaluation and add structural features, such as whether a residue is buried, or embeddings from a protein language model.';
   $('repoLine').innerHTML = 'All code, the frozen splits\' recipe and the full results are in the ' + (C.repo_url ? '<a href="' + esc(C.repo_url) + '">source repository</a>.' : 'source repository.');
   var ver = R.versions;
   $('envLine').textContent = 'Python ' + ver.python + ', scikit-learn ' + ver['scikit-learn'] + ', pandas ' + ver.pandas + ', numpy ' + ver.numpy + ', scipy ' + ver.scipy + '.';
@@ -187,11 +285,14 @@
       { v: r.grouped, cls: 'f1', text: f3(r.grouped), tip: '<b>' + esc(r.name) + '</b><br>Folds keep clusters together: ' + f3(r.grouped) },
       { v: r.random, cls: 'f2', text: f3(r.random), tip: '<b>' + esc(r.name) + '</b><br>Random folds: ' + f3(r.random) }] }; }), xmax, 'Cross-validated MAE (' + UNIT + ')');
   }
-  function chartF1F2(el) {
-    var xmax = Math.max.apply(null, pairs.map(function (a) { return Math.max(M[a + ' (F1)'].val_mae, M[a + ' (F2)'].val_mae); })) * 1.05;
-    chartBars(el, pairs.map(function (a) { var x = M[a + ' (F1)'], y = M[a + ' (F2)']; return { label: a, bars: [
-      { v: x.val_mae, cls: 'f1', text: f3(x.val_mae), tip: '<b>' + esc(a) + ', F1</b><br>Validation MAE ' + f3(x.val_mae) },
-      { v: y.val_mae, cls: 'f2', text: f3(y.val_mae), tip: '<b>' + esc(a) + ', F2</b><br>Validation MAE ' + f3(y.val_mae) }] }; }), xmax, 'Validation MAE (' + UNIT + ')');
+  function chartFS(el) {   // one bar per feature set the algorithm was run with; missing sets leave no bar
+    var xmax = Math.max.apply(null, fsAlgs.map(function (a) { return Math.max.apply(null, setsOf(a).map(function (k) { return M[a + ' (' + k + ')'].val_mae; })); })) * 1.05;
+    chartBars(el, fsAlgs.map(function (a) { return { label: a, bars: setsOf(a).map(function (k) { var x = M[a + ' (' + k + ')'];
+      return { v: x.val_mae, cls: 'f' + (ALLSETS.indexOf(k) + 1), text: k + ' ' + f3(x.val_mae), tip: '<b>' + esc(a) + ', ' + k + '</b><br>Validation MAE ' + f3(x.val_mae) }; }) }; }), xmax, 'Validation MAE (' + UNIT + ')');
+  }
+  function chartImportanceGroups(el) {
+    var xmax = Math.max.apply(null, ig.map(function (d) { return d.mae_increase + d.sd; })) * 1.1 || 0.01;
+    chartBars(el, ig.map(function (d) { return { label: d.group, bars: [{ v: Math.max(0, d.mae_increase), cls: 'f1', text: sg(d.mae_increase), tip: '<b>' + esc(d.group) + '</b><br>' + d.columns.map(esc).join(', ') + '<br>MAE increase ' + sg(d.mae_increase, 4) + ' ± ' + f(d.sd, 4) }] }; }), xmax, 'Increase in validation MAE when shuffled (' + UNIT + ')');
   }
   function chartImportance(el) {
     var xmax = Math.max.apply(null, R.importance.map(function (d) { return d.mae_increase + d.sd; })) * 1.1 || 0.01;
@@ -251,13 +352,17 @@
   exModel.addEventListener('change', renderExplorer); exStratum.addEventListener('change', renderExplorer);
   function sliceRows(list) { return list.map(function (s) { return '<tr><td>' + esc(s.slice) + '</td><td class="r">' + n0(s.n) + '</td><td class="r">' + f3(s.mae) + '</td><td class="r">' + sg(s.bias) + '</td><td class="r">' + f3(s.mae_ref) + '</td><td class="r">' + f3(s.mae_mean) + '</td></tr>'; }).join(''); }
   var RS = R.residuals;
-  $('sliceRows').innerHTML = '<tr class="sub"><td colspan="6">By the amino acid introduced</td></tr>' + sliceRows(RS.by_type) + '<tr class="sub"><td colspan="6">By origin of the protein</td></tr>' + sliceRows(RS.by_origin) + '<tr class="sub"><td colspan="6">By size of the real effect</td></tr>' + sliceRows(RS.by_size);
+  $('sliceRows').innerHTML = '<tr class="sub"><td colspan="6">By the amino acid introduced</td></tr>' + sliceRows(RS.by_type) + '<tr class="sub"><td colspan="6">By origin of the protein</td></tr>' + sliceRows(RS.by_origin) + '<tr class="sub"><td colspan="6">By size of the real effect</td></tr>' + sliceRows(RS.by_size) +
+    (RS.by_burial ? '<tr class="sub"><td colspan="6">By burial at the mutated position (AlphaFold model; thirds cut on training rows)</td></tr>' + sliceRows(RS.by_burial) : '');
   $('clusterRows').innerHTML = RS.by_cluster.map(function (s) { return '<tr><td>' + esc(s.slice) + '</td><td>' + s.origin + '</td><td class="r">' + s.proteins + '</td><td class="r">' + n0(s.n) + '</td><td class="r">' + f3(s.mae) + '</td><td class="r">' + sg(s.bias) + '</td><td class="r">' + f3(s.mae_mean) + '</td></tr>'; }).join('');
   var bigSize = RS.by_size.filter(function (s) { return s.slice === 'over 2'; })[0], smallSize = RS.by_size.filter(function (s) { return /under/.test(s.slice); })[0];
   var worstType = RS.by_type.slice().sort(function (a, b) { return b.mae - a.mae; })[0];
   var bigC = RS.by_cluster[0];
   $('errorNote').innerHTML = (bigSize && smallSize ? 'Errors grow with the size of the real effect: MAE ' + f3(smallSize.mae) + ' for mutations with |ΔΔG| under 0.5, and ' + f3(bigSize.mae) + ' for those over 2, where the model predicts too ' + (bigSize.bias > 0 ? 'high' : 'low') + ' by ' + f(Math.abs(bigSize.bias)) + ' on average. ' : '') +
-    'The hardest substitution type is mutations ' + esc(worstType.slice) + ' (MAE ' + f3(worstType.mae) + '). The largest test cluster, ' + esc(bigC.slice) + ', holds ' + pct(bigC.n / S.n_test) + ' of the test set, so it weighs heavily in every test score.';
+    'The hardest substitution type is mutations ' + esc(worstType.slice) + ' (MAE ' + f3(worstType.mae) + '). ' + (function () {
+      var b = (RS.by_burial || []).filter(function (s) { return /^buried/.test(s.slice); })[0], e = (RS.by_burial || []).filter(function (s) { return /^exposed/.test(s.slice); })[0];
+      return b && e ? 'Buried positions are ' + (b.mae > e.mae ? 'harder' : 'easier') + ': MAE ' + f3(b.mae) + ' against ' + f3(e.mae) + ' for exposed ones, which matches buried mutations having larger effects. ' : '';
+    })() + 'The largest test cluster, ' + esc(bigC.slice) + ', holds ' + pct(bigC.n / S.n_test) + ' of the test set, so it weighs heavily in every test score.';
 
   // ------------------------------------------------------------------ sandbox (F1 features + ridge, in the browser)
   function rng(seed) { var a = (seed >>> 0) + 0x9e3779b9; return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -381,12 +486,12 @@
   function claimBox(yes, no) { return '<div><h4>This supports</h4><ul>' + yes.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></div><div><h4>This does not show</h4><ul>' + no.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul></div>'; }
   var CLAIMS = {
     results: claimBox(['On ' + S.c_test + ' unseen clusters, ' + esc(SEL.name) + ' differed from the mean by ' + sg(SEL.diff_vs_mean) + ' ' + UNIT + ' (' + civ(SEL.diff_vs_mean_ci) + ') and from the substitution table by ' + sg(SEL.diff_vs_ref) + ' (' + civ(SEL.diff_vs_ref_ci) + ').', 'How the split is made changes the answer: random folds made ' + esc(lk.name) + ' look ' + pct(lkGain) + ' better.'],
-      ['That sequence cannot predict stability better. Only simple features and no 3D structure were tried.', 'That the result holds for mutations outside the assay\'s range, or for other datasets.', 'That any feature causes stability.']),
+      [HAS_ST ? 'That these features are the best available. Protein language models and experimental structures were not tried.' : 'That sequence cannot predict stability better. Only simple features and no 3D structure were tried.', 'That the result holds for mutations outside the assay\'s range, or for other datasets.', 'That any feature causes stability.']),
     split: claimBox(['Random folds overstate accuracy when relatives of the test rows are in training.', 'Folds that keep clusters together give a fairer estimate for unseen families.'],
       ['Anything about the tree models: this panel runs only the baselines and ridge.', 'That grouped CV is precise: with few clusters it is still noisy.']),
     errors: claimBox(['Which kinds of mutation the selected model misses most, and in which direction.', 'Which inputs the model relies on.'],
       ['That small slices have reliable errors.', 'That all error is model error: part is measurement noise.']),
-    compare: claimBox(['How the methods rank on validation MAE, which is how the model was chosen.', 'Whether adding neighbouring residues (F2) helps each algorithm.'],
+    compare: claimBox(['How the methods rank on validation MAE, which is how the model was chosen.', 'Whether each added feature set lowers validation MAE for each algorithm.'],
       ['That a gap smaller than the test intervals is real.', 'That the ranking holds with tuned hyperparameters or other features.'])
   };
   document.querySelectorAll('[data-claims]').forEach(function (el) { el.innerHTML = CLAIMS[el.getAttribute('data-claims')] || ''; });
@@ -394,7 +499,9 @@
     var base = (C.repo_url || '').replace(/\/$/, '');
     el.innerHTML = 'In the repository: ' + el.getAttribute('data-items').split(';').map(function (p) { var t = '<code>' + esc(p) + '</code>'; return base ? '<a href="' + esc(base) + '/blob/main/' + esc(p) + '">' + t + '</a>' : t; }).join(', ') + '.';
   });
-  if (has('myContribution')) $('myContribution').innerHTML = C.contribution ? '<p>' + esc(C.contribution) + '</p>' : '<p class="note"><strong>Not written yet.</strong> Add <code>contribution</code> in <code>config.json</code> and rerun <code>src/evaluate.py</code>.</p>';
+  function paras(t) { return String(t || '').split(/\n\s*\n/).filter(function (x) { return x.trim(); }).map(function (x) { return '<p>' + esc(x.trim()) + '</p>'; }).join(''); }
+  if (has('aiUse')) $('aiUse').innerHTML = paras(C.ai_use);
+  if (has('myContribution')) $('myContribution').innerHTML = paras(C.contribution);
 
   // ------------------------------------------------------------------ compare page
   function renderCompare() {
@@ -408,9 +515,14 @@
       row('Within-protein Spearman', f(a.test_within_spearman), f(b.test_within_spearman), (a.test_within_spearman == null || b.test_within_spearman == null) ? null : b.test_within_spearman - a.test_within_spearman);
     var ra = REP[a.name], rb = REP[b.name], txt = '';
     if (ra && rb && a.name !== b.name) { var w = 0; ra.mae.forEach(function (v, i) { if (v < rb.mae[i]) w++; }); txt = ' Across ' + NREP + ' repeated splits, ' + esc(a.name) + ' had the lower MAE in ' + w + ' and ' + esc(b.name) + ' in ' + (NREP - w) + '.'; }
-    else if (a.name !== b.name) txt = ' Repeated splits were run only for the baselines, ridge and the selected model.';
+    else if (a.name !== b.name) txt = ' Repeated splits were run only for the baselines, ridge, the selected model and its base algorithm on each feature set.';
     var ov = !(a.test_mae_ci[1] < b.test_mae_ci[0] || b.test_mae_ci[1] < a.test_mae_ci[0]);
     $('cmpReadout').innerHTML = a.name === b.name ? 'Pick two different methods.' : 'Their test MAE intervals ' + (ov ? 'overlap, so this test cannot separate them.' : 'do not overlap.') + txt;
+  }
+  if (has('tuneRows')) {
+    var TU = R.tuning || [];
+    $('tuneRows').innerHTML = TU.length ? TU.map(function (t) { return '<tr' + (t.chosen ? ' class="pick"' : '') + '><td>' + esc(t.algorithm) + '</td><td>' + esc(t.setting) + (t.chosen ? '<span class="pill sel">chosen</span>' : '') + '</td><td>' + esc(t.features) + '</td><td class="r">' + f3(t.val_mae) + '</td></tr>'; }).join('')
+      : '<tr><td colspan="4">No tuning was run.</td></tr>';
   }
   if (has('cmpA')) {
     var opts = R.models.map(function (m) { return '<option>' + esc(m.name) + '</option>'; }).join('');
@@ -451,7 +563,7 @@
   window.addEventListener('scroll', function () { tip.style.display = 'none'; }, { passive: true });
   document.querySelectorAll('.topbar nav a').forEach(function (a) { var here = a.getAttribute('data-page') === document.body.getAttribute('data-page'); a.classList.toggle('here', here); if (here) a.setAttribute('aria-current', 'page'); });
   function renderAll() {
-    var map = { chartHist: chartHist, chartLeak: chartLeak, chartF1F2: chartF1F2, chartImportance: chartImportance };
+    var map = { chartHist: chartHist, chartLeak: chartLeak, chartFS: chartFS, chartImportance: chartImportance, chartImportanceGroups: chartImportanceGroups };
     Object.keys(map).forEach(function (id) { if (has(id)) map[id]($(id)); });
     if (has('chartForest')) chartForest($('chartForest'), 'Mean');
     if (has('chartForestRef')) chartForest($('chartForestRef'), REF);

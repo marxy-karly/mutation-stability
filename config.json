@@ -40,5 +40,13 @@
   "test_rows_shown": 3000,
   "repo_url": "",
   "author": "",
-  "contribution": ""
+  "contribution": "",
+  "structures": "data/structures",
+  "structure_max_mismatch": 3,
+  "extended_algorithms": [
+    "Ridge",
+    "Random forest",
+    "HistGradientBoosting",
+    "XGBoost"
+  ]
 }

@@ -38,7 +38,9 @@
 </section>
 <section id="importance">
   <h2>What the selected model relies on</h2>
-  <div class="figure"><h4>Permutation importance</h4><p class="sub">How much the validation MAE rises when one input column is shuffled (3 repeats).</p><div id="chartImportance"></div></div>
+  <div class="figure"><h4>Permutation importance by kind of information</h4><p class="sub">How much the validation MAE rises when every column of one kind is shuffled together (3 repeats).</p><div id="chartImportanceGroups"></div></div>
+  <p id="importanceGroupNote"></p>
+  <div class="figure"><h4>Permutation importance by column</h4><p class="sub">How much the validation MAE rises when one input column is shuffled (3 repeats).</p><div id="chartImportance"></div></div>
   <p id="importanceNote"></p>
   <p class="repo" data-items="src/evaluate.py"></p>
 </section>
@@ -48,6 +50,7 @@
 </div>
 <div id="tip" role="status"></div>
 <script src="results.js"></script>
+<script src="about.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

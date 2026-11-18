@@ -20,7 +20,7 @@
 <header class="pagehead"><p class="kicker">Guided tour</p><h1>Nine steps through the project</h1><p class="answer">Each step shows one piece of evidence from the same pipeline output as the rest of the site.</p></header>
 <div class="tour-bar"><div class="tour-track"><div class="tour-fill" id="tourFill"></div></div><p class="tour-count" id="tourCount"></p></div>
 <section class="tstep" id="step-1"><h2><span class="n">01</span>The question</h2><p>Testing whether one amino-acid change helps or hurts a protein takes an experiment. A model that ranks candidate mutations first would save work, if it works on new proteins.</p>
-<dl class="frame"><dt>One row</dt><dd>One single substitution in one protein, such as W34D.</dd><dt>Target</dt><dd>ΔΔG in kcal/mol. Positive means more stable.</dd><dt>Inputs</dt><dd>The swap, its position, the protein's length, and the neighbouring residues.</dd><dt>Test</dt><dd>Protein families the model never saw.</dd></dl></section>
+<dl class="frame"><dt>One row</dt><dd>One single substitution in one protein, such as W34D.</dd><dt>Target</dt><dd>ΔΔG in kcal/mol. Positive means more stable.</dd><dt>Inputs</dt><dd>The swap, its position, the sequence around it, and how buried the residue is in a predicted structure.</dd><dt>Test</dt><dd>Protein families the model never saw.</dd></dl></section>
 <section class="tstep" id="step-2"><h2><span class="n">02</span>One row of the data</h2><p>Five random rows. The sequence shows six residues either side of the mutated one, in bold.</p>
 <div class="scroll"><table><thead><tr><th>Mutation</th><th>Sequence around it</th><th class="r">ΔΔG</th><th>Cluster</th></tr></thead><tbody id="tourRows"></tbody></table></div><button type="button" class="ghost" id="tourShuffle">Show five other rows</button></section>
 <section class="tstep" id="step-3"><h2><span class="n">03</span>What the target looks like</h2><div class="figure">
@@ -42,7 +42,7 @@
 <section class="tstep" id="step-7"><h2><span class="n">07</span>The models against the baselines</h2><p id="tourVerdict"></p><div class="figure">
     <h4 id="forestTitle"></h4>
     <p class="sub">Test MAE minus the mean baseline's test MAE. Left of zero is better.</p>
-    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge and the selected model)</span></div>
+    <div class="legend"><span><i class="line"></i>Test set, with 95% interval</span><span><i class="dot"></i>One of <span data-v="config.n_repeats"></span> repeated splits (baselines, ridge, the selected model, and its base algorithm on each feature set)</span></div>
     <div id="chartForest"></div>
   </div>
   <div class="figure">
@@ -59,6 +59,7 @@
 </div>
 <div id="tip" role="status"></div>
 <script src="results.js"></script>
+<script src="about.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
